@@ -20,6 +20,28 @@ std::string tokenToString(const Token &t) {
     case TokenKind::Tok_Colon: os << "Colon"; break;
     case TokenKind::Tok_Ellipsis: os << "Ellipsis"; break;
     case TokenKind::Tok_Dot: os << "Dot"; break;
+  case TokenKind::Tok_Plus: os << "Plus"; break;
+  case TokenKind::Tok_PlusPlus: os << "PlusPlus"; break;
+  case TokenKind::Tok_Minus: os << "Minus"; break;
+  case TokenKind::Tok_MinusMinus: os << "MinusMinus"; break;
+  case TokenKind::Tok_BitNot: os << "BitNot"; break;
+  case TokenKind::Tok_Not: os << "Not"; break;
+  case TokenKind::Tok_Multiply: os << "Multiply"; break;
+  case TokenKind::Tok_Divide: os << "Divide"; break;
+  case TokenKind::Tok_Modulus: os << "Modulus"; break;
+  case TokenKind::Tok_Power: os << "Power"; break;
+  case TokenKind::Tok_NullCoalesce: os << "NullCoalesce"; break;
+  case TokenKind::Tok_Hashtag: os << "Hashtag"; break;
+  case TokenKind::Tok_RightShiftArithmetic: os << "RightShiftArithmetic"; break;
+  case TokenKind::Tok_RightShiftArithmeticAssign: os << "RightShiftArithmeticAssign"; break;
+  case TokenKind::Tok_RightShiftLogical: os << "RightShiftLogical"; break;
+  case TokenKind::Tok_RightShiftLogicalAssign: os << "RightShiftLogicalAssign"; break;
+  case TokenKind::Tok_MoreThan: os << "MoreThan"; break;
+  case TokenKind::Tok_GreaterThanEquals: os << "GreaterThanEquals"; break;
+  case TokenKind::Tok_LeftShiftArithmetic: os << "LeftShiftArithmetic"; break;
+  case TokenKind::Tok_LeftShiftArithmeticAssign: os << "LeftShiftArithmeticAssign"; break;
+  case TokenKind::Tok_LessThan: os << "LessThan"; break;
+  case TokenKind::Tok_LessThanEquals: os << "LessThanEquals"; break;
     case TokenKind::Tok_Integer: os << "Integer(" << (t.intValue ? std::to_string(*t.intValue) : t.text) << ")"; break;
     case TokenKind::Tok_Invalid: os << "Invalid(" << t.text << ")"; break;
   }

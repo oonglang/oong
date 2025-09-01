@@ -115,6 +115,7 @@ Token Lexer::nextToken() {
     }
 
     switch (c) {
+  case '#': return makeToken(TokenKind::Tok_Hashtag, start, 1);
     case '[': return makeToken(TokenKind::Tok_LBracket, start, 1);
     case ']': return makeToken(TokenKind::Tok_RBracket, start, 1);
     case '(': return makeToken(TokenKind::Tok_LParen, start, 1);
@@ -124,7 +125,14 @@ Token Lexer::nextToken() {
     case ';': return makeToken(TokenKind::Tok_Semi, start, 1);
     case ',': return makeToken(TokenKind::Tok_Comma, start, 1);
     case '=': return makeToken(TokenKind::Tok_Assign, start, 1);
-    case ':': return makeToken(TokenKind::Tok_Colon, start, 1);
+  case '+':
+    // PlusPlus '++' or single '+'
+    if (Pos < Src.size() && Src[Pos] == '+') {
+      ++Pos; // consume second '+'
+      return makeToken(TokenKind::Tok_PlusPlus, start, 2);
+    }
+    return makeToken(TokenKind::Tok_Plus, start, 1);
+  case ':': return makeToken(TokenKind::Tok_Colon, start, 1);
     case '.':
         // Ellipsis '...'
         if (Pos + 1 < Src.size() && Src[Pos] == '.' && Src[Pos + 1] == '.') {
@@ -132,13 +140,81 @@ Token Lexer::nextToken() {
             return makeToken(TokenKind::Tok_Ellipsis, start, 3);
         }
         return makeToken(TokenKind::Tok_Dot, start, 1);
-    case '?':
-        // If next char is '.', emit QuestionDot
-        if (Pos < Src.size() && Src[Pos] == '.') {
-            ++Pos; // consume '.'
-            return makeToken(TokenKind::Tok_QuestionDot, start, 2);
-        }
-        return makeToken(TokenKind::Tok_Question, start, 1);
+  case '?':
+    // Prefer NullCoalesce '??' over QuestionDot '?.' and single '?'
+    if (Pos < Src.size() && Src[Pos] == '?') {
+      ++Pos; // consume second '?'
+      return makeToken(TokenKind::Tok_NullCoalesce, start, 2);
+    }
+    // If next char is '.', emit QuestionDot
+    if (Pos < Src.size() && Src[Pos] == '.') {
+      ++Pos; // consume '.'
+      return makeToken(TokenKind::Tok_QuestionDot, start, 2);
+    }
+    return makeToken(TokenKind::Tok_Question, start, 1);
+  case '-':
+    // MinusMinus '--' or single '-'
+    if (Pos < Src.size() && Src[Pos] == '-') {
+      ++Pos; // consume second '-'
+      return makeToken(TokenKind::Tok_MinusMinus, start, 2);
+    }
+    return makeToken(TokenKind::Tok_Minus, start, 1);
+  case '~': return makeToken(TokenKind::Tok_BitNot, start, 1);
+  case '!': return makeToken(TokenKind::Tok_Not, start, 1);
+  case '*':
+    // Power '**' or single '*'
+    if (Pos < Src.size() && Src[Pos] == '*') {
+      ++Pos; // consume second '*'
+      return makeToken(TokenKind::Tok_Power, start, 2);
+    }
+    return makeToken(TokenKind::Tok_Multiply, start, 1);
+  case '/': return makeToken(TokenKind::Tok_Divide, start, 1);
+  case '%': return makeToken(TokenKind::Tok_Modulus, start, 1);
+  case '>':
+    // Handle >>>= (RightShiftLogicalAssign), >>> (RightShiftLogical), >>= (RightShiftArithmeticAssign), >> (RightShiftArithmetic), >=, >
+    if (Pos + 2 < Src.size() && Src[Pos] == '>' && Src[Pos+1] == '>' && Src[Pos+2] == '=') {
+      Pos += 3; // consumed '>>>='
+      return makeToken(TokenKind::Tok_RightShiftLogicalAssign, start, 4);
+    }
+    if (Pos + 1 < Src.size() && Src[Pos] == '>' && Src[Pos+1] == '>') {
+      // '>>' followed by '>' -> '>>>' (logical)
+      if (Pos + 2 < Src.size() && Src[Pos+2] == '>') {
+        // consume '>>>'
+        Pos += 3;
+        return makeToken(TokenKind::Tok_RightShiftLogical, start, 3);
+      }
+    }
+    // Check for '>>=' (arithmetic assign)
+    if (Pos < Src.size() && Src[Pos] == '>' && Pos + 1 < Src.size() && Src[Pos+1] == '=') {
+      Pos += 2; // consume '>>='
+      return makeToken(TokenKind::Tok_RightShiftArithmeticAssign, start, 3);
+    }
+    // Check for '>>' (arithmetic)
+    if (Pos < Src.size() && Src[Pos] == '>') {
+      ++Pos; // consume second '>'
+      return makeToken(TokenKind::Tok_RightShiftArithmetic, start, 2);
+    }
+    // Check for '>='
+    if (Pos < Src.size() && Src[Pos] == '=') {
+      ++Pos; // consume '='
+      return makeToken(TokenKind::Tok_GreaterThanEquals, start, 2);
+    }
+    return makeToken(TokenKind::Tok_MoreThan, start, 1);
+  case '<':
+    // Handle <<= (LeftShiftArithmeticAssign), << (LeftShiftArithmetic), <=, <
+    if (Pos + 1 < Src.size() && Src[Pos] == '<' && Src[Pos+1] == '=') {
+      Pos += 2; // consumed '<<='
+      return makeToken(TokenKind::Tok_LeftShiftArithmeticAssign, start, 3);
+    }
+    if (Pos < Src.size() && Src[Pos] == '<') {
+      ++Pos; // consume second '<'
+      return makeToken(TokenKind::Tok_LeftShiftArithmetic, start, 2);
+    }
+    if (Pos < Src.size() && Src[Pos] == '=') {
+      ++Pos; // consume '='
+      return makeToken(TokenKind::Tok_LessThanEquals, start, 2);
+    }
+    return makeToken(TokenKind::Tok_LessThan, start, 1);
     default:
         return makeToken(TokenKind::Tok_Invalid, start, 1);
     }
