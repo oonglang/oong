@@ -1,0 +1,5 @@
+/*
+ This is a multi-line comment.
+ It should be skipped by the lexer.
+*/
+print(42)
