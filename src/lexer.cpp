@@ -99,20 +99,134 @@ Token Lexer::nextToken() {
                 break;
         }
         std::string txt = Src.substr(idStart, Pos - idStart);
-        if (txt == "print")
-            return makeToken(TokenKind::Tok_Print, idStart, txt.size());
-        return makeToken(TokenKind::Tok_Invalid, idStart, txt.size());
+    if (txt == "print")
+      return makeToken(TokenKind::Tok_Print, idStart, txt.size());
+    if (txt == "null")
+      return makeToken(TokenKind::Tok_NullLiteral, idStart, txt.size());
+    if (txt == "true" || txt == "false")
+      return makeToken(TokenKind::Tok_BooleanLiteral, idStart, txt.size());
+    return makeToken(TokenKind::Tok_Invalid, idStart, txt.size());
     }
 
-    // Numbers (integers only)
-    if (c >= '0' && c <= '9') {
-        size_t numStart = start;
-        int64_t val = c - '0';
-        while (Pos < Src.size() && Src[Pos] >= '0' && Src[Pos] <= '9') {
-            val = val * 10 + (Src[Pos++] - '0');
+  // Numbers: integers, decimals, hex/binary/octal, and BigInt variants
+
+  auto isDigit = [](char ch){ return ch >= '0' && ch <= '9'; };
+  auto isHexDigit = [](char ch){ return (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f') || (ch >= 'A' && ch <= 'F'); };
+  auto isDecDigit = [](char ch){ return (ch >= '0' && ch <= '9') || ch == '_'; };
+  if (isDigit(c) || (c == '.' && Pos < Src.size() && isDigit(Src[Pos]))) {
+    size_t numStart = start;
+
+    // Handle 0-prefixed non-decimal forms: 0x, 0b, 0o
+    if (c == '0' && Pos < Src.size()) {
+      char nx = Src[Pos];
+      // hex 0x...
+      if (nx == 'x' || nx == 'X') {
+        ++Pos; // consume 'x'
+        // must have at least one hex digit
+        if (!(Pos < Src.size() && isHexDigit(Src[Pos]))) {
+          // not a valid hex literal, treat leading '0' as integer and leave 'x' for next token
+          Pos = numStart + 1;
+          return makeToken(TokenKind::Tok_Integer, numStart, 1, 0);
         }
-        return makeToken(TokenKind::Tok_Integer, numStart, Pos - numStart, val);
+        size_t p = Pos;
+        while (p < Src.size() && (isHexDigit(Src[p]) || Src[p] == '_')) ++p;
+        // optional trailing 'n' for BigHexIntegerLiteral
+        if (p < Src.size() && Src[p] == 'n') { ++p; Pos = p; return makeToken(TokenKind::Tok_BigHexIntegerLiteral, numStart, Pos - numStart); }
+        Pos = p;
+        return makeToken(TokenKind::Tok_HexIntegerLiteral, numStart, Pos - numStart);
+      }
+      // binary 0b...
+      if (nx == 'b' || nx == 'B') {
+        ++Pos; // consume 'b'
+        // must have at least one binary digit
+        if (!(Pos < Src.size() && (Src[Pos] == '0' || Src[Pos] == '1'))) {
+          Pos = numStart + 1;
+          return makeToken(TokenKind::Tok_Integer, numStart, 1, 0);
+        }
+        size_t p = Pos;
+        while (p < Src.size() && (Src[p] == '0' || Src[p] == '1' || Src[p] == '_')) ++p;
+        if (p < Src.size() && Src[p] == 'n') { ++p; Pos = p; return makeToken(TokenKind::Tok_BigBinaryIntegerLiteral, numStart, Pos - numStart); }
+        Pos = p;
+        return makeToken(TokenKind::Tok_BinaryIntegerLiteral, numStart, Pos - numStart);
+      }
+      // octal with explicit 0o...
+      if (nx == 'o' || nx == 'O') {
+        ++Pos; // consume 'o'
+        // must have at least one octal digit
+        if (!(Pos < Src.size() && (Src[Pos] >= '0' && Src[Pos] <= '7'))) {
+          Pos = numStart + 1;
+          return makeToken(TokenKind::Tok_Integer, numStart, 1, 0);
+        }
+        size_t p = Pos;
+        while (p < Src.size() && ((Src[p] >= '0' && Src[p] <= '7') || Src[p] == '_' )) ++p;
+        if (p < Src.size() && Src[p] == 'n') { ++p; Pos = p; return makeToken(TokenKind::Tok_BigOctalIntegerLiteral, numStart, Pos - numStart); }
+        Pos = p;
+        return makeToken(TokenKind::Tok_OctalIntegerLiteral2, numStart, Pos - numStart);
+      }
+
+  // legacy octal: 0[0-7]+ (simple handling) -- only when not in strict mode
+  if (!IsStrictMode() && Pos < Src.size() && Src[Pos] >= '0' && Src[Pos] <= '7') {
+        size_t p = Pos; // we've already consumed the leading '0'
+        while (p < Src.size() && (Src[p] >= '0' && Src[p] <= '7')) ++p;
+        // optional trailing 'n'
+        if (p < Src.size() && Src[p] == 'n') { ++p; Pos = p; return makeToken(TokenKind::Tok_BigOctalIntegerLiteral, numStart, Pos - numStart); }
+        Pos = p;
+        return makeToken(TokenKind::Tok_OctalIntegerLiteral, numStart, Pos - numStart);
+      }
     }
+
+    // For decimals and integers (including leading '.' form)
+    bool hasDigitsBeforeDot = isDigit(c);
+    if (hasDigitsBeforeDot) {
+      while (Pos < Src.size() && isDecDigit(Src[Pos])) ++Pos;
+    }
+
+    bool isDecimal = false;
+    // fractional part if '.' followed by digit
+    if (Pos < Src.size() && Src[Pos] == '.') {
+      if (Pos + 1 < Src.size() && isDigit(Src[Pos+1])) {
+        isDecimal = true;
+        ++Pos; // consume '.'
+  while (Pos < Src.size() && isDecDigit(Src[Pos])) ++Pos;
+      } else if (!hasDigitsBeforeDot) {
+        // lone '.' without digits before or after -> treat as dot token, backtrack
+        Pos = numStart + 1; // ensure we only consumed the '.'
+        return makeToken(TokenKind::Tok_Dot, numStart, 1);
+      }
+    }
+
+    // exponent part [eE][+-]?[0-9]+
+    if (Pos < Src.size() && (Src[Pos] == 'e' || Src[Pos] == 'E')) {
+      size_t expPos = Pos + 1;
+      if (expPos < Src.size() && (Src[expPos] == '+' || Src[expPos] == '-')) ++expPos;
+      if (expPos < Src.size() && isDigit(Src[expPos])) {
+        ++Pos; // consume 'e' or 'E'
+        if (Pos < Src.size() && (Src[Pos] == '+' || Src[Pos] == '-')) ++Pos;
+  while (Pos < Src.size() && isDecDigit(Src[Pos])) ++Pos;
+        isDecimal = true;
+      }
+    }
+
+    // big-int suffix for decimal integer: 'n'
+    if (!isDecimal && hasDigitsBeforeDot && Pos < Src.size() && Src[Pos] == 'n') {
+      ++Pos; return makeToken(TokenKind::Tok_BigDecimalIntegerLiteral, numStart, Pos - numStart);
+    }
+
+    if (isDecimal) {
+      return makeToken(TokenKind::Tok_DecimalLiteral, numStart, Pos - numStart);
+    }
+
+    if (hasDigitsBeforeDot) {
+      // parse integer value for Tok_Integer (no overflow checks)
+      int64_t val = 0;
+      for (size_t i = numStart; i < Pos; ++i) {
+        char ch = Src[i];
+        if (ch == '_') continue; // skip numeric separators
+        val = val * 10 + (ch - '0');
+      }
+      return makeToken(TokenKind::Tok_Integer, numStart, Pos - numStart, val);
+    }
+  }
 
     switch (c) {
   case '#': return makeToken(TokenKind::Tok_Hashtag, start, 1);
@@ -124,8 +238,27 @@ Token Lexer::nextToken() {
     case '}': return makeToken(TokenKind::Tok_RBrace, start, 1);
     case ';': return makeToken(TokenKind::Tok_Semi, start, 1);
     case ',': return makeToken(TokenKind::Tok_Comma, start, 1);
-    case '=': return makeToken(TokenKind::Tok_Assign, start, 1);
+    case '=':
+        // Prefer '=>' (arrow) first, then '===' over '==' and then single '=' assignment
+        if (Pos < Src.size() && Src[Pos] == '>') {
+          ++Pos; // consume '>'
+          return makeToken(TokenKind::Tok_Arrow, start, 2);
+        }
+        if (Pos + 1 < Src.size() && Src[Pos] == '=' && Src[Pos+1] == '=') {
+          Pos += 2; // consume '==' after the first '='
+          return makeToken(TokenKind::Tok_IdentityEquals, start, 3);
+        }
+        if (Pos < Src.size() && Src[Pos] == '=') {
+          ++Pos; // consume second '='
+          return makeToken(TokenKind::Tok_Equals, start, 2);
+        }
+        return makeToken(TokenKind::Tok_Assign, start, 1);
   case '+':
+    // Prefer '+=' over '++' and single '+'
+    if (Pos < Src.size() && Src[Pos] == '=') {
+      ++Pos; // consume '='
+      return makeToken(TokenKind::Tok_PlusAssign, start, 2);
+    }
     // PlusPlus '++' or single '+'
     if (Pos < Src.size() && Src[Pos] == '+') {
       ++Pos; // consume second '+'
@@ -141,7 +274,11 @@ Token Lexer::nextToken() {
         }
         return makeToken(TokenKind::Tok_Dot, start, 1);
   case '?':
-    // Prefer NullCoalesce '??' over QuestionDot '?.' and single '?'
+    // Prefer '??=' (nullish-coalescing-assign) then '??' (nullish coalesce) over '?.' (optional chain) and single '?'
+    if (Pos + 1 < Src.size() && Src[Pos] == '?' && Src[Pos+1] == '=') {
+      Pos += 2; // consume '?=' after first '?'
+      return makeToken(TokenKind::Tok_NullishCoalescingAssign, start, 3);
+    }
     if (Pos < Src.size() && Src[Pos] == '?') {
       ++Pos; // consume second '?'
       return makeToken(TokenKind::Tok_NullCoalesce, start, 2);
@@ -153,6 +290,11 @@ Token Lexer::nextToken() {
     }
     return makeToken(TokenKind::Tok_Question, start, 1);
   case '-':
+    // Prefer '-=' (minus-assign) over '--' (decrement) and single '-'
+    if (Pos < Src.size() && Src[Pos] == '=') {
+      ++Pos; // consume '='
+      return makeToken(TokenKind::Tok_MinusAssign, start, 2);
+    }
     // MinusMinus '--' or single '-'
     if (Pos < Src.size() && Src[Pos] == '-') {
       ++Pos; // consume second '-'
@@ -160,16 +302,45 @@ Token Lexer::nextToken() {
     }
     return makeToken(TokenKind::Tok_Minus, start, 1);
   case '~': return makeToken(TokenKind::Tok_BitNot, start, 1);
-  case '!': return makeToken(TokenKind::Tok_Not, start, 1);
+  case '!':
+    // Prefer '!==' over '!=' and then '!'
+    if (Pos + 1 < Src.size() && Src[Pos] == '=' && Src[Pos+1] == '=') {
+      Pos += 2; // consume '==' after '!'
+      return makeToken(TokenKind::Tok_IdentityNotEquals, start, 3);
+    }
+    if (Pos < Src.size() && Src[Pos] == '=') {
+      ++Pos; // consume '='
+      return makeToken(TokenKind::Tok_NotEquals, start, 2);
+    }
+    return makeToken(TokenKind::Tok_Not, start, 1);
   case '*':
-    // Power '**' or single '*'
+    // Prefer '**=' (power-assign), then '**' (power), then '*=' (multiply-assign), then single '*'
+    if (Pos + 1 < Src.size() && Src[Pos] == '*' && Src[Pos+1] == '=') {
+      Pos += 2; // consumed '**='
+      return makeToken(TokenKind::Tok_PowerAssign, start, 3);
+    }
     if (Pos < Src.size() && Src[Pos] == '*') {
       ++Pos; // consume second '*'
       return makeToken(TokenKind::Tok_Power, start, 2);
     }
+    if (Pos < Src.size() && Src[Pos] == '=') {
+      ++Pos; // consume '='
+      return makeToken(TokenKind::Tok_MultiplyAssign, start, 2);
+    }
     return makeToken(TokenKind::Tok_Multiply, start, 1);
-  case '/': return makeToken(TokenKind::Tok_Divide, start, 1);
-  case '%': return makeToken(TokenKind::Tok_Modulus, start, 1);
+  case '/':
+    // '/=' (divide-assign) or '/' (divide)
+    if (Pos < Src.size() && Src[Pos] == '=') {
+      ++Pos; // consume '='
+      return makeToken(TokenKind::Tok_DivideAssign, start, 2);
+    }
+    return makeToken(TokenKind::Tok_Divide, start, 1);
+  case '%':
+    if (Pos < Src.size() && Src[Pos] == '=') {
+      ++Pos; // consume '='
+      return makeToken(TokenKind::Tok_ModulusAssign, start, 2);
+    }
+    return makeToken(TokenKind::Tok_Modulus, start, 1);
   case '>':
     // Handle >>>= (RightShiftLogicalAssign), >>> (RightShiftLogical), >>= (RightShiftArithmeticAssign), >> (RightShiftArithmetic), >=, >
     if (Pos + 2 < Src.size() && Src[Pos] == '>' && Src[Pos+1] == '>' && Src[Pos+2] == '=') {
@@ -200,6 +371,35 @@ Token Lexer::nextToken() {
       return makeToken(TokenKind::Tok_GreaterThanEquals, start, 2);
     }
     return makeToken(TokenKind::Tok_MoreThan, start, 1);
+  case '&':
+    // Prefer '&&' (logical and) and '&=' (bit-and-assign) over single '&'
+    if (Pos < Src.size() && Src[Pos] == '&') {
+      ++Pos; // consume second '&'
+      return makeToken(TokenKind::Tok_LogicalAnd, start, 2);
+    }
+    if (Pos < Src.size() && Src[Pos] == '=') {
+      ++Pos; // consume '='
+      return makeToken(TokenKind::Tok_BitAndAssign, start, 2);
+    }
+    return makeToken(TokenKind::Tok_BitAnd, start, 1);
+  case '^':
+    // '^=' (bit-xor-assign) or '^' (bit-xor)
+    if (Pos < Src.size() && Src[Pos] == '=') {
+      ++Pos; // consume '='
+      return makeToken(TokenKind::Tok_BitXorAssign, start, 2);
+    }
+    return makeToken(TokenKind::Tok_BitXor, start, 1);
+  case '|':
+    // Prefer '||' (logical or) and '|=' (bit-or-assign) over single '|'
+    if (Pos < Src.size() && Src[Pos] == '|') {
+      ++Pos; // consume second '|'
+      return makeToken(TokenKind::Tok_LogicalOr, start, 2);
+    }
+    if (Pos < Src.size() && Src[Pos] == '=') {
+      ++Pos; // consume '='
+      return makeToken(TokenKind::Tok_BitOrAssign, start, 2);
+    }
+    return makeToken(TokenKind::Tok_BitOr, start, 1);
   case '<':
     // Handle <<= (LeftShiftArithmeticAssign), << (LeftShiftArithmetic), <=, <
     if (Pos + 1 < Src.size() && Src[Pos] == '<' && Src[Pos+1] == '=') {
