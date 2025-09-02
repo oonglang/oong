@@ -1,0 +1,394 @@
+#include "lexer.h"
+#include "token.h"
+#include <cctype>
+#include <sstream>
+
+// Helper: detect UTF-8 encoded U+2028 (E2 80 A8) and U+2029 (E2 80 A9)
+static inline bool isUtf8LineSeparator(const std::string &s, size_t pos)
+{
+  if (pos + 2 >= s.size())
+    return false;
+  unsigned char a = static_cast<unsigned char>(s[pos]);
+  unsigned char b = static_cast<unsigned char>(s[pos + 1]);
+  unsigned char c = static_cast<unsigned char>(s[pos + 2]);
+  return a == 0xE2 && b == 0x80 && (c == 0xA8 || c == 0xA9);
+}
+
+// If there's a line terminator at pos, return its byte length (1 for \r/\n, 3 for UTF-8 separators), otherwise 0
+static inline size_t lineTerminatorLength(const std::string &s, size_t pos)
+{
+  if (pos >= s.size())
+    return 0;
+  unsigned char ch = static_cast<unsigned char>(s[pos]);
+  // Handle CRLF as a single line terminator
+  if (ch == '\r')
+  {
+    if (pos + 1 < s.size() && static_cast<unsigned char>(s[pos + 1]) == '\n')
+      return 2;
+    return 1;
+  }
+  if (ch == '\n')
+    return 1;
+  if (isUtf8LineSeparator(s, pos))
+    return 3;
+  return 0;
+}
+
+void Lexer::skipWhitespace()
+{
+  while (Pos < Src.size())
+  {
+    unsigned char c = (unsigned char)Src[Pos];
+    // Match the grammar's WhiteSpaces: [\t\u000B\u000C\u0020\u00A0]
+    // Use explicit checks instead of isspace() so we reliably include NO-BREAK SPACE (0xA0)
+    // and avoid accidentally consuming line terminators here (they are handled below).
+    if (c == '\t' || c == '\v' || c == '\f' || c == ' ' || c == 0xA0)
+    {
+      ++Pos;
+      continue;
+    }
+
+    // treat Unicode line separators (U+2028/U+2029) same as newline
+    size_t ltlen = lineTerminatorLength(Src, Pos);
+    if (ltlen)
+    {
+      Pos += ltlen;
+      continue;
+    }
+
+    // try hash-bang (only allowed at start)
+    if (skipHashBang())
+      continue;
+
+    // try comment skipping
+    if (skipSingleLineComment())
+      continue;
+    // try HTML comment <!-- ... -->
+    if (skipHtmlComment())
+      continue;
+    // try CDATA comment <![CDATA[ ... ]]> (treat like hidden channel)
+    if (skipCDataComment())
+      continue;
+    // try multi-line comment
+    if (skipMultiLineComment())
+      continue;
+
+    break; // non-whitespace, non-comment char
+  }
+}
+
+bool Lexer::skipSingleLineComment()
+{
+  if (Src[Pos] != '/' || Pos + 1 >= Src.size() || Src[Pos + 1] != '/')
+    return false;
+  Pos += 2; // skip '//'
+  while (Pos < Src.size())
+  {
+    size_t lt = lineTerminatorLength(Src, Pos);
+    if (lt)
+      break;
+    ++Pos;
+  }
+  return true;
+}
+
+bool Lexer::skipHashBang()
+{
+  // only at start of file
+  if (Pos != 0)
+    return false;
+  if (Src[Pos] != '#' || Pos + 1 >= Src.size() || Src[Pos + 1] != '!')
+    return false;
+  Pos += 2; // skip '#!'
+  while (Pos < Src.size())
+  {
+    size_t lt = lineTerminatorLength(Src, Pos);
+    if (lt)
+      break;
+    ++Pos;
+  }
+  return true;
+}
+
+bool Lexer::skipHtmlComment()
+{
+  if (Pos + 3 >= Src.size())
+    return false;
+  // match '<!--'
+  if (Src[Pos] != '<' || Src[Pos + 1] != '!' || Src[Pos + 2] != '-' || Src[Pos + 3] != '-')
+    return false;
+  Pos += 4; // consume '<!--'
+  // non-greedy up to '-->' or EOF
+  while (Pos + 2 < Src.size())
+  {
+    if (Src[Pos] == '-' && Src[Pos + 1] == '-' && Src[Pos + 2] == '>')
+    {
+      Pos += 3; // consume '-->'
+      return true;
+    }
+    ++Pos;
+  }
+  // unterminated: consume to EOF
+  Pos = Src.size();
+  return true;
+}
+
+bool Lexer::skipCDataComment()
+{
+  // match '<![CDATA['
+  const char *pat = "<![CDATA[";
+  const size_t patlen = 9; // length of '<![CDATA['
+  if (Pos + patlen - 1 >= Src.size())
+    return false;
+  for (size_t i = 0; i < patlen; ++i)
+  {
+    if (Src[Pos + i] != pat[i])
+      return false;
+  }
+  Pos += patlen; // consume '<![CDATA['
+  while (Pos + 2 < Src.size())
+  {
+    if (Src[Pos] == ']' && Src[Pos + 1] == ']' && Src[Pos + 2] == '>')
+    {
+      Pos += 3; // consume ']]>'
+      return true;
+    }
+    ++Pos;
+  }
+  // unterminated: consume to EOF
+  Pos = Src.size();
+  return true;
+}
+
+Token Lexer::makeToken(TokenKind k, size_t start, size_t len, std::optional<int64_t> intVal) const
+{
+  Token t{k, Src.substr(start, len)};
+  t.pos = start;
+  t.intValue = intVal;
+  return t;
+}
+
+void Lexer::ProcessTemplateOpenBrace()
+{
+  // entering an expression inside a template: mark that we're no longer scanning template atoms
+  InTemplateString = false;
+}
+
+void Lexer::ProcessTemplateCloseBrace()
+{
+  // when closing an expression inside a template, resume template string scanning
+  InTemplateString = true;
+}
+
+Token Lexer::nextToken()
+{
+  skipWhitespace();
+
+  size_t start = Pos;
+  if (Pos >= Src.size())
+    return makeToken(TokenKind::Tok_EOF, Pos, 0);
+
+  // If currently inside a template string, scan TemplateStringAtom and template delimiters
+  if (InTemplateString)
+  {
+    size_t atomStart = Pos;
+    while (Pos < Src.size())
+    {
+      // handle escapes inside template atoms: backslash escapes and line continuations
+      if (Src[Pos] == '\\')
+      {
+        if (Pos + 1 >= Src.size())
+        {
+          ++Pos; // trailing backslash at EOF
+          continue;
+        }
+        // line continuation: backslash followed by line terminator(s)
+        size_t lt = lineTerminatorLength(Src, Pos + 1);
+        if (lt)
+        {
+          // consume backslash and following line terminators
+          Pos += 1; // skip backslash
+          while (Pos < Src.size())
+          {
+            size_t l2 = lineTerminatorLength(Src, Pos);
+            if (!l2)
+              break;
+            Pos += l2;
+          }
+          continue;
+        }
+
+        // Handle escape sequences inside template atom: \xNN, \uXXXX, \u{...}, or single '0'
+        char esc = Src[Pos + 1];
+        if (esc == 'x')
+        {
+          size_t q = Pos + 2;
+          if (q + 1 < Src.size() && isxdigit((unsigned char)Src[q]) && isxdigit((unsigned char)Src[q + 1]))
+          {
+            Pos = q + 2;
+            continue;
+          }
+          // invalid hex escape: consume '\\' and 'x'
+          Pos += 2;
+          continue;
+        }
+        if (esc == 'u')
+        {
+          size_t q = Pos + 2;
+          // \\uFFFF
+          if (q + 3 < Src.size() && isxdigit((unsigned char)Src[q]) && isxdigit((unsigned char)Src[q + 1]) && isxdigit((unsigned char)Src[q + 2]) && isxdigit((unsigned char)Src[q + 3]))
+          {
+            Pos = q + 4;
+            continue;
+          }
+          // \\u{...}
+          if (q < Src.size() && Src[q] == '{')
+          {
+            size_t r = q + 1;
+            while (r < Src.size() && isxdigit((unsigned char)Src[r]))
+              ++r;
+            if (r < Src.size() && Src[r] == '}' && r > q + 1)
+            {
+              Pos = r + 1;
+              continue;
+            }
+          }
+          // fallback: consume '\\' and 'u'
+          Pos += 2;
+          continue;
+        }
+        if (esc == '0')
+        {
+          // consume '\\0' only (grammar prohibits digit following '0' in this escape)
+          Pos += 2;
+          continue;
+        }
+        // other escapes: consume backslash + single char
+        Pos += 2;
+        continue;
+      }
+
+      if (Src[Pos] == '`')
+      {
+        if (Pos > atomStart)
+          return makeToken(TokenKind::Tok_TemplateStringAtom, atomStart, Pos - atomStart);
+        // empty atom before closing backtick -> emit backtick below
+        break;
+      }
+      if (Src[Pos] == '$' && Pos + 1 < Src.size() && Src[Pos + 1] == '{')
+      {
+        if (Pos > atomStart)
+          return makeToken(TokenKind::Tok_TemplateStringAtom, atomStart, Pos - atomStart);
+        // emit the '${' token
+        Pos += 2;
+        // notify caller that we entered an expression
+        return makeToken(TokenKind::Tok_TemplateStringStartExpression, Pos - 2, 2);
+      }
+      ++Pos;
+    }
+    // ran to EOF or found delimiter at Pos
+    if (Pos < Src.size() && Src[Pos] == '`')
+    {
+      // emit backtick token and exit template mode
+      size_t start = Pos++;
+      InTemplateString = false;
+      return makeToken(TokenKind::Tok_BackTick, start, 1);
+    }
+    // EOF while in template -> emit remaining atom or invalid
+    if (Pos > atomStart)
+      return makeToken(TokenKind::Tok_TemplateStringAtom, atomStart, Pos - atomStart);
+    return makeToken(TokenKind::Tok_Invalid, atomStart, 0);
+  }
+
+  char c = Src[Pos++];
+
+  // Identifiers: support ASCII letters, digits, '_', '$', simple Unicode escape sequences (e.g. \\\uXXXX or \\\u{...}) and non-ASCII bytes
+  if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || c == '$' || c == '\\' || (static_cast<unsigned char>(c) & 0x80))
+  {
+    size_t idStart = start;
+    if (c == '\\')
+      Pos = idStart;
+
+    while (Pos < Src.size())
+    {
+      char nc = Src[Pos];
+      if ((nc >= 'a' && nc <= 'z') || (nc >= 'A' && nc <= 'Z') || (nc >= '0' && nc <= '9') || nc == '_' || nc == '$')
+      {
+        ++Pos;
+        continue;
+      }
+      unsigned char unc = static_cast<unsigned char>(nc);
+      if (unc & 0x80)
+      {
+        ++Pos;
+        continue;
+      }
+      if (nc == '\\')
+      {
+        if (Pos + 1 < Src.size() && Src[Pos + 1] == 'u')
+        {
+          size_t p = Pos + 2;
+          bool consumed = false;
+          if (p + 3 < Src.size() && isxdigit((unsigned char)Src[p]) && isxdigit((unsigned char)Src[p+1]) && isxdigit((unsigned char)Src[p+2]) && isxdigit((unsigned char)Src[p+3]))
+          {
+            Pos = p + 4;
+            consumed = true;
+          }
+          else if (p < Src.size() && Src[p] == '{')
+          {
+            size_t r = p + 1;
+            while (r < Src.size() && isxdigit((unsigned char)Src[r]))
+              ++r;
+            if (r < Src.size() && Src[r] == '}' && r > p + 1)
+            {
+              Pos = r + 1;
+              consumed = true;
+            }
+          }
+          if (consumed)
+            continue;
+        }
+        break;
+      }
+      break;
+    }
+    std::string txt = Src.substr(idStart, Pos - idStart);
+    if (txt == "print")
+      return makeToken(TokenKind::Tok_Print, idStart, txt.size());
+    if (txt == "break")
+      return makeToken(TokenKind::Tok_Break, idStart, txt.size());
+    if (txt == "do")
+      return makeToken(TokenKind::Tok_Do, idStart, txt.size());
+    if (txt == "instanceof")
+      return makeToken(TokenKind::Tok_Instanceof, idStart, txt.size());
+    if (txt == "typeof")
+      return makeToken(TokenKind::Tok_Typeof, idStart, txt.size());
+    if (txt == "case")
+      return makeToken(TokenKind::Tok_Case, idStart, txt.size());
+    if (txt == "else")
+      return makeToken(TokenKind::Tok_Else, idStart, txt.size());
+    if (txt == "new")
+      return makeToken(TokenKind::Tok_New, idStart, txt.size());
+    if (txt == "var")
+      return makeToken(TokenKind::Tok_Var, idStart, txt.size());
+    if (txt == "catch")
+      return makeToken(TokenKind::Tok_Catch, idStart, txt.size());
+    if (txt == "finally")
+      return makeToken(TokenKind::Tok_Finally, idStart, txt.size());
+    if (txt == "return")
+      return makeToken(TokenKind::Tok_Return, idStart, txt.size());
+    if (txt == "void")
+      return makeToken(TokenKind::Tok_Void, idStart, txt.size());
+    if (txt == "continue")
+      return makeToken(TokenKind::Tok_Continue, idStart, txt.size());
+    if (txt == "for")
+      return makeToken(TokenKind::Tok_For, idStart, txt.size());
+    if (txt == "switch")
+      return makeToken(TokenKind::Tok_Switch, idStart, txt.size());
+    if (txt == "while")
+      return makeToken(TokenKind::Tok_While, idStart, txt.size());
+    if (txt == "debugger")
+      return makeToken(TokenKind::Tok_Debugger, idStart, txt.size());
+    if (txt == "function")
+      return makeToken(TokenKind::Tok_Function, idStart, txt.size());
+
