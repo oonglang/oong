@@ -1,0 +1,45 @@
+// tests/test_smoke.oong
+// Small smoke test for parser: import/export, class with static/getter/setter,
+// template strings, bigint, arrow functions, for-loop, do/while, throw, empty statements.
+
+import { default as lib } from "./lib";
+
+export default function sum(a, b) {
+  return a + b;
+}
+
+class Counter {
+  static initial = 0;
+  constructor(n = Counter.initial) {
+    this._v = n;
+  }
+  get value() { return this._v; }
+  set value(v) { this._v = v; }
+}
+
+let a = 10;
+let tpl = `count is ${a}`;
+let big = 9007199254740991n; // bigint
+
+const mult = (x, y) => x * y;
+
+for (let i = 0; i < 2; i++) {
+  // empty body allowed
+}
+
+// empty statement lines
+;
+
+function doLoop() {
+  let k = 0;
+  do {
+    k++;
+  } while (k < 1);
+}
+
+// throw with expression on same line (valid)
+function willThrow() {
+  throw new Error("boom");
+}
+
+// end of file

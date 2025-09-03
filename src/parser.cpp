@@ -1,6 +1,7 @@
 #include "parser.h"
 #include <optional>
 #include <string>
+#include <iostream>
 
 std::optional<ParseResult> Parser::parseSwitchStatement()
 {
@@ -73,7 +74,11 @@ ParseResult Parser::parse() {
   // Parse optional sourceElements (sourceElement*) per grammar.
   if (auto se = parseSourceElements()) {
     // Ensure we've consumed to EOF
-    if (Cur.kind != TokenKind::Tok_EOF) return error("expected EOF after source elements");
+    if (Cur.kind != TokenKind::Tok_EOF) {
+      // diagnostic assistance
+      std::cerr << "DEBUG: parse ended with Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << " PrevTokenEnd=" << PrevTokenEnd << "\n";
+      return error("expected EOF after source elements");
+    }
     return std::move(*se);
   }
 
@@ -99,6 +104,7 @@ bool Parser::parseImportDefault()
 
 bool Parser::parseImportFromBlock()
 {
+  std::cerr << "DEBUG: enter parseImportFromBlock Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   // importFromBlock
   //   : importDefault? (importNamespace | importModuleItems) importFrom eos
   //   | StringLiteral eos
@@ -134,6 +140,7 @@ bool Parser::parseImportFromBlock()
 
   // expect importFrom (the 'from' keyword)
   if (!parseImportFrom()) return false;
+  std::cerr << "DEBUG: exit parseImportFromBlock Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   return true;
 }
 
@@ -154,6 +161,7 @@ bool Parser::parseImportNamespace()
 
 bool Parser::parseImportFrom()
 {
+  std::cerr << "DEBUG: enter parseImportFrom Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   // importFrom : From StringLiteral
   if (Cur.kind != TokenKind::Tok_From) return false;
   advance();
@@ -161,15 +169,18 @@ bool Parser::parseImportFrom()
   advance();
   // accept semicolon or EOF as eos
     parseEos();
+  std::cerr << "DEBUG: exit parseImportFrom Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   return true;
 }
 
 std::optional<ParseResult> Parser::parseImportStatement()
 {
+  std::cerr << "DEBUG: enter parseImportStatement Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   // importStatement : Import importFromBlock
   if (Cur.kind != TokenKind::Tok_Import) return std::nullopt;
   advance();
   if (!parseImportFromBlock()) return error("invalid import statement");
+  std::cerr << "DEBUG: exit parseImportStatement Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   return ParseResult{true, std::string(), nullptr};
 }
 
@@ -271,11 +282,13 @@ bool Parser::parseModuleExportName()
 {
   // moduleExportName : identifierName | StringLiteral
   if (Cur.kind == TokenKind::Tok_StringLiteral) { advance(); return true; }
+  std::cerr << "DEBUG: parseModuleExportName try identifierName Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   return parseIdentifierName();
 }
 
 bool Parser::parseImportModuleItems()
 {
+  std::cerr << "DEBUG: enter parseImportModuleItems Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   // importModuleItems : '{' (importAliasName ',')* (importAliasName ','?)? '}'
   if (Cur.kind != TokenKind::Tok_LBrace) return false;
   advance();
@@ -290,17 +303,20 @@ bool Parser::parseImportModuleItems()
   }
   if (Cur.kind != TokenKind::Tok_RBrace) return false;
   advance();
+  std::cerr << "DEBUG: exit parseImportModuleItems Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   return true;
 }
 
 bool Parser::parseImportAliasName()
 {
+  std::cerr << "DEBUG: enter parseImportAliasName Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   // importAliasName : moduleExportName (As importedBinding)?
   if (!parseModuleExportName()) return false;
   if (Cur.kind == TokenKind::Tok_As) {
     advance();
     if (!parseImportedBinding()) return false;
   }
+  std::cerr << "DEBUG: exit parseImportAliasName Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   return true;
 }
 
@@ -323,27 +339,21 @@ std::optional<ParseResult> Parser::parsePrintStatement()
 bool Parser::parseImportedBinding()
 {
   // importedBinding : Identifier | Yield | Await
-  switch (Cur.kind) {
-  case TokenKind::Tok_NonStrictLet:
-  case TokenKind::Tok_StrictLet:
-  case TokenKind::Tok_Async:
-  case TokenKind::Tok_As:
-  case TokenKind::Tok_From:
-  case TokenKind::Tok_Yield:
-  case TokenKind::Tok_Of:
-  case TokenKind::Tok_Await:
+  if (Cur.kind == TokenKind::Tok_Yield || Cur.kind == TokenKind::Tok_Await) {
     advance();
     return true;
-  default:
-    return false;
   }
+  // Identifier-like: use identifierName recognizer (conservative)
+  return parseIdentifierName();
 }
 
 bool Parser::parseIdentifierName()
 {
   // identifierName : identifier | reservedWord
   // First try identifier production.
+  std::cerr << "DEBUG: parseIdentifierName start Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   if (parseIdentifier()) return true;
+  std::cerr << "DEBUG: parseIdentifierName after parseIdentifier Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   return parseReservedWord();
 }
 
@@ -469,10 +479,13 @@ std::optional<ParseResult> Parser::parseStatementList()
 
 std::optional<ParseResult> Parser::parseStatement()
 {
+  std::cerr << "DEBUG: enter parseStatement Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   // Try block
   if (auto b = parseBlock()) return b;
   // variable statement
   if (auto vs = parseVariableStatement()) return vs;
+  // class declaration
+  if (auto cd = parseClassDeclaration()) return cd;
   // empty statement
   if (auto e = parseEmptyStatement()) return e;
   // import/export/print
@@ -496,6 +509,7 @@ std::optional<ParseResult> Parser::parseStatement()
   // with statement
   if (auto w = parseWithStatement()) return w;
   if (auto sw = parseSwitchStatement()) return sw;
+  std::cerr << "DEBUG: exit parseStatement no match Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   return std::nullopt;
 }
 
@@ -511,7 +525,13 @@ std::optional<ParseResult> Parser::handleOptionalHashBang()
 
 std::optional<ParseResult> Parser::parseEmptyStatement()
 {
-  if (!parseEos()) return std::nullopt;
+  // emptyStatement_ : SemiColon
+  // Only accept an explicit semicolon here. Using parseEos() would allow
+  // implicit semicolon insertion (line terminators) to satisfy an empty
+  // statement without consuming any token which can cause the parser loop
+  // to make no progress. Require a real ';' token and consume it.
+  if (Cur.kind != TokenKind::Tok_Semi) return std::nullopt;
+  advance();
   return ParseResult{true, std::string(), nullptr};
 }
 
@@ -996,11 +1016,15 @@ std::optional<ParseResult> Parser::parseSourceElements()
 {
   // sourceElements : sourceElement*
   std::optional<ParseResult> last;
+  int iter = 0;
   while (true) {
+    std::cerr << "DEBUG: parseSourceElements iter=" << iter << " Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
     auto s = parseStatement();
+    if (s) std::cerr << "DEBUG: parseSourceElements parsed a statement; Cur after parseStatement: kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
     if (!s) break;
     last = std::move(*s);
     if (Cur.kind == TokenKind::Tok_EOF) break;
+    ++iter;
   }
   return last;
 }

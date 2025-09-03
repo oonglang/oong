@@ -698,6 +698,8 @@ Token Lexer::nextToken()
       return makeToken(TokenKind::Tok_In, idStart, txt.size());
     if (txt == "try")
       return makeToken(TokenKind::Tok_Try, idStart, txt.size());
+    if (txt == "default")
+      return makeToken(TokenKind::Tok_Default, idStart, txt.size());
     if (txt == "as")
       return makeToken(TokenKind::Tok_As, idStart, txt.size());
     if (txt == "from")
