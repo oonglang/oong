@@ -1,16 +1,47 @@
+
 #pragma once
+#include "token.h"
 #include <memory>
 #include <string>
 #include <vector>
+#include <utility>
 
-// Tiny AST for oong: only PrintStmt(int)
+
+// AST base classes
+struct Expr {
+  virtual ~Expr() = default;
+};
+
 struct Stmt {
   virtual ~Stmt() = default;
 };
 
+// Program node: holds a list of statements
+struct Program : Stmt {
+  std::vector<std::unique_ptr<Stmt>> statements;
+  explicit Program(std::vector<std::unique_ptr<Stmt>> stmts)
+    : statements(std::move(stmts)) {}
+};
+
+// Expression types
+struct LiteralExpr : Expr {
+  std::string value;
+  explicit LiteralExpr(const std::string& v) : value(v) {}
+};
+
+struct CallExpr : Expr {
+  std::string callee;
+  std::vector<std::unique_ptr<Expr>> args;
+  CallExpr(const std::string& c, std::vector<std::unique_ptr<Expr>> a)
+    : callee(c), args(std::move(a)) {}
+};
+
+// Print statement now stores an Expr
 struct PrintStmt : Stmt {
-  int Value;
-  explicit PrintStmt(int v) : Value(v) {}
+  std::unique_ptr<Expr> expr;
+    TokenKind origin;
+    PrintStmt(std::unique_ptr<Expr> e, TokenKind k)
+      : expr(std::move(e)), origin(k) {}
 };
 
 // Minimal Type AST for lightweight printing and future wiring

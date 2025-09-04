@@ -29,7 +29,7 @@ int main(int argc, char **argv) {
     if (!doCompile) {
         int r = run_interpreter(content);
         if (r == 0) return 0; // interpreter handled it
-        // otherwise fallthrough to compiler
+        else return r; // interpreter failed, return error code
     }
 
     return run_compiler(inputPath, outPath);

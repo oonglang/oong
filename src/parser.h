@@ -1,9 +1,10 @@
+
 #pragma once
 #include "lexer.h"
 #include <memory>
 #include <optional>
 #include <string>
-
+#include <iostream>
 #include "ast.h"
 
 // Parser result
@@ -137,5 +138,20 @@ private:
   void advance() { PrevTokenEnd = Cur.pos + Cur.text.size(); Cur = L.nextToken(); }
   // Last parsed type (populated by parseType when it succeeds)
   std::unique_ptr<Type> LastTypeParsed;
-  ParseResult error(const std::string &msg) { return {false, msg, nullptr}; }
+  ParseResult error(const std::string &msg) {
+    // std::cerr << "Parse error: " << msg << std::endl;
+    // std::cerr << "Remaining tokens:" << std::endl;
+    int count = 0;
+    Token t = Cur;
+    Lexer lex = L;
+    while (t.kind != TokenKind::Tok_EOF && count < 20) {
+      // std::cerr << "  kind=" << (int)t.kind << " text='" << t.text << "' pos=" << t.pos << std::endl;
+      t = lex.nextToken();
+      ++count;
+    }
+    // if (t.kind == TokenKind::Tok_EOF) {
+    //   std::cerr << "  kind=EOF" << std::endl;
+    // }
+    return {false, msg, nullptr};
+  }
 };

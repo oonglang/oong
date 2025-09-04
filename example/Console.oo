@@ -1,0 +1,5 @@
+console.warn("Warning message!");
+console.error("Error message!");
+console.log("Log message!");
+console.info("Info message!");
+console.success("Success message!");

@@ -16,19 +16,23 @@
 #include <llvm/ExecutionEngine/Orc/ExecutionUtils.h>
 
 int run_interpreter(const std::string &source) {
+    auto isNumber = [](const std::string& s) {
+        if (s.empty()) return false;
+        size_t i = 0;
+        if (s[0] == '-') i = 1;
+        for (; i < s.size(); ++i) {
+            if (!isdigit(s[i])) return false;
+        }
+        return true;
+    };
     // parse source into AST
     Parser P(source);
     auto R = P.parse();
     if (!R.ok || !R.stmt) {
-        std::cerr << "Parse error: " << R.error << "\n";
+        std::cerr << "Interpreter Parse error: " << R.error << "\n";
         return 1;
     }
-    auto *ps = dynamic_cast<PrintStmt*>(R.stmt.get());
-    if (!ps) {
-        std::cerr << "Unsupported statement\n";
-        return 1;
-    }
-    int intval = ps->Value;
+
 
     // Initialize native target for JIT
     llvm::InitializeNativeTarget();
@@ -49,11 +53,9 @@ int run_interpreter(const std::string &source) {
     auto M = std::make_unique<llvm::Module>("oong_interpreter", ctx);
     llvm::IRBuilder<> builder(ctx);
 
-    // declare printf
-    std::vector<llvm::Type*> printf_arg_types;
-    printf_arg_types.push_back(llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(ctx)));
-    auto printf_type = llvm::FunctionType::get(llvm::Type::getInt32Ty(ctx), printf_arg_types, true);
-    auto printf_func = llvm::Function::Create(printf_type, llvm::Function::ExternalLinkage, "printf", M.get());
+    // declare puts
+    auto puts_type = llvm::FunctionType::get(llvm::Type::getInt32Ty(ctx), {llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(ctx))}, false);
+    auto puts_func = llvm::Function::Create(puts_type, llvm::Function::ExternalLinkage, "puts", M.get());
 
     // create oong_main
     auto main_type = llvm::FunctionType::get(llvm::Type::getInt32Ty(ctx), false);
@@ -61,10 +63,70 @@ int run_interpreter(const std::string &source) {
     auto bb = llvm::BasicBlock::Create(ctx, "entry", main_func);
     builder.SetInsertPoint(bb);
 
-    auto fmt = builder.CreateGlobalStringPtr("%d\n");
-    auto const_val = llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx), intval);
-    builder.CreateCall(printf_func, {fmt, const_val});
-    builder.CreateRet(llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx), 0));
+    // Execute all statements in Program
+    auto *prog = dynamic_cast<Program*>(R.stmt.get());
+    if (prog) {
+        std::string yellow = "\033[33m";
+        std::string reset = "\033[0m";
+        for (const auto& s : prog->statements) {
+            if (auto ps = dynamic_cast<PrintStmt*>(s.get())) {
+                std::string result;
+                if (auto lit = dynamic_cast<LiteralExpr*>(ps->expr.get())) {
+                    result = lit->value;
+                } else if (auto call = dynamic_cast<CallExpr*>(ps->expr.get())) {
+                    if (call->callee == "test") {
+                        result = "123";
+                    } else {
+                        result = call->callee + "()";
+                    }
+                } else {
+                    result = "<unsupported expr>";
+                }
+                // Output color: yellow for number, red for console.error, magenta for console.warn
+                std::string color = "";
+                if (isNumber(result)) {
+                    color = yellow;
+                }
+                if (ps->origin == TokenKind::Tok_ConsoleError) {
+                    color = "\033[31m"; // red
+                }
+                if (ps->origin == TokenKind::Tok_ConsoleWarn) {
+                    color = "\033[38;2;255;165;0m"; // orange-yellow
+                }
+                if (ps->origin == TokenKind::Tok_ConsoleInfo) {
+                    color = "\033[34m"; // blue
+                }
+                if (ps->origin == TokenKind::Tok_ConsoleSuccess) {
+                    color = "\033[32m"; // green
+                }
+                if (!color.empty()) {
+                    result = color + result + reset;
+                }
+                auto out_str = builder.CreateGlobalStringPtr(result.c_str());
+                builder.CreateCall(puts_func, {out_str});
+            }
+        }
+        builder.CreateRet(llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx), 0));
+    } else if (auto ps = dynamic_cast<PrintStmt*>(R.stmt.get())) {
+        std::string result;
+        if (auto lit = dynamic_cast<LiteralExpr*>(ps->expr.get())) {
+            result = lit->value;
+        } else if (auto call = dynamic_cast<CallExpr*>(ps->expr.get())) {
+            if (call->callee == "test") {
+                result = "123";
+            } else {
+                result = call->callee + "()";
+            }
+        } else {
+            result = "<unsupported expr>";
+        }
+        auto out_str = builder.CreateGlobalStringPtr(result.c_str());
+        builder.CreateCall(puts_func, {out_str});
+        builder.CreateRet(llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx), 0));
+    } else {
+        std::cerr << "Unsupported statement\n";
+        return 1;
+    }
 
     if (llvm::verifyModule(*M, &llvm::errs())) {
         std::cerr << "Generated module is broken\n";

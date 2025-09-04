@@ -94,8 +94,20 @@ ParseResult Parser::parse()
     // Ensure we've consumed to EOF
     if (Cur.kind != TokenKind::Tok_EOF)
     {
-      // diagnostic assistance
-      std::cerr << "DEBUG: parse ended with Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << " PrevTokenEnd=" << PrevTokenEnd << "\n";
+      // Print remaining tokens for diagnostics
+      std::cerr << "Parse error: expected EOF after source elements\n";
+      std::cerr << "Remaining tokens:" << std::endl;
+      int count = 0;
+      while (Cur.kind != TokenKind::Tok_EOF && count < 20)
+      { // limit to 20 tokens for sanity
+        // std::cerr << "  kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << std::endl;
+        advance();
+        ++count;
+      }
+      if (Cur.kind == TokenKind::Tok_EOF)
+      {
+        // std::cerr << "  kind=EOF" << std::endl;
+      }
       return error("expected EOF after source elements");
     }
     return std::move(*se);
@@ -126,7 +138,7 @@ bool Parser::parseImportDefault()
 
 bool Parser::parseImportFromBlock()
 {
-  std::cerr << "DEBUG: enter parseImportFromBlock Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
+  // std::cerr << "DEBUG: enter parseImportFromBlock Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   // importFromBlock
   //   : importDefault? (importNamespace | importModuleItems) importFrom eos
   //   | StringLiteral eos
@@ -177,7 +189,7 @@ bool Parser::parseImportFromBlock()
   // expect importFrom (the 'from' keyword)
   if (!parseImportFrom())
     return false;
-  std::cerr << "DEBUG: exit parseImportFromBlock Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
+  // std::cerr << "DEBUG: exit parseImportFromBlock Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   return true;
 }
 
@@ -204,7 +216,7 @@ bool Parser::parseImportNamespace()
 
 bool Parser::parseImportFrom()
 {
-  std::cerr << "DEBUG: enter parseImportFrom Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
+  // std::cerr << "DEBUG: enter parseImportFrom Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   // importFrom : From StringLiteral
   if (Cur.kind != TokenKind::Tok_From)
     return false;
@@ -214,20 +226,20 @@ bool Parser::parseImportFrom()
   advance();
   // accept semicolon or EOF as eos
   parseEos();
-  std::cerr << "DEBUG: exit parseImportFrom Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
+  // std::cerr << "DEBUG: exit parseImportFrom Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   return true;
 }
 
 std::optional<ParseResult> Parser::parseImportStatement()
 {
-  std::cerr << "DEBUG: enter parseImportStatement Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
+  // std::cerr << "DEBUG: enter parseImportStatement Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   // importStatement : Import importFromBlock
   if (Cur.kind != TokenKind::Tok_Import)
     return std::nullopt;
   advance();
   if (!parseImportFromBlock())
     return error("invalid import statement");
-  std::cerr << "DEBUG: exit parseImportStatement Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
+  // std::cerr << "DEBUG: exit parseImportStatement Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   return ParseResult{true, std::string(), nullptr};
 }
 
@@ -359,13 +371,13 @@ bool Parser::parseModuleExportName()
     advance();
     return true;
   }
-  std::cerr << "DEBUG: parseModuleExportName try identifierName Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
+  // std::cerr << "DEBUG: parseModuleExportName try identifierName Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   return parseIdentifierName();
 }
 
 bool Parser::parseImportModuleItems()
 {
-  std::cerr << "DEBUG: enter parseImportModuleItems Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
+  // std::cerr << "DEBUG: enter parseImportModuleItems Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   // importModuleItems : '{' (importAliasName ',')* (importAliasName ','?)? '}'
   if (Cur.kind != TokenKind::Tok_LBrace)
     return false;
@@ -386,13 +398,13 @@ bool Parser::parseImportModuleItems()
   if (Cur.kind != TokenKind::Tok_RBrace)
     return false;
   advance();
-  std::cerr << "DEBUG: exit parseImportModuleItems Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
+  // std::cerr << "DEBUG: exit parseImportModuleItems Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   return true;
 }
 
 bool Parser::parseImportAliasName()
 {
-  std::cerr << "DEBUG: enter parseImportAliasName Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
+  // std::cerr << "DEBUG: enter parseImportAliasName Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   // importAliasName : moduleExportName (As importedBinding)?
   if (!parseModuleExportName())
     return false;
@@ -402,28 +414,96 @@ bool Parser::parseImportAliasName()
     if (!parseImportedBinding())
       return false;
   }
-  std::cerr << "DEBUG: exit parseImportAliasName Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
+  // std::cerr << "DEBUG: exit parseImportAliasName Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   return true;
 }
 
 std::optional<ParseResult> Parser::parsePrintStatement()
 {
-  if (Cur.kind != TokenKind::Tok_Print)
+  // std::cout << "[parsePrintStatement] Start: Cur.kind=" << (int)Cur.kind << " text=" << Cur.text << std::endl;
+  if (Cur.kind != TokenKind::Tok_Print && Cur.kind != TokenKind::Tok_ConsoleLog && Cur.kind != TokenKind::Tok_ConsoleError && Cur.kind != TokenKind::Tok_ConsoleWarn && Cur.kind != TokenKind::Tok_ConsoleInfo && Cur.kind != TokenKind::Tok_ConsoleSuccess)
     return std::nullopt;
+  // std::cout << "[parsePrintStatement] Matched print/console.log, advancing" << std::endl;
+  TokenKind printKind = Cur.kind;
   advance();
+  // std::cout << "[parsePrintStatement] After advance: Cur.kind=" << (int)Cur.kind << " text=" << Cur.text << std::endl;
   if (Cur.kind != TokenKind::Tok_LParen)
-    return error("expected '('");
+    return error("expected '(');");
+  // std::cout << "[parsePrintStatement] Matched '(', advancing" << std::endl;
   advance();
-  if (Cur.kind != TokenKind::Tok_Integer)
-    return error("expected integer");
-  if (!Cur.intValue.has_value())
-    return error("invalid integer token");
-  int val = static_cast<int>(*Cur.intValue);
-  advance();
-  if (Cur.kind != TokenKind::Tok_RParen)
-    return error("expected ')'");
-  advance();
-  return ParseResult{true, std::string(), std::make_unique<PrintStmt>(val)};
+  // std::cout << "[parsePrintStatement] After advance: Cur.kind=" << (int)Cur.kind << " text=" << Cur.text << std::endl;
+  // Accept any expression inside print(...)
+  // For simplicity, consume tokens until matching ')'
+  int parenDepth = 1;
+  std::string exprText;
+  while (Cur.kind != TokenKind::Tok_EOF && parenDepth > 0)
+  {
+    // std::cout << "[parsePrintStatement] Loop: Cur.kind=" << (int)Cur.kind << " text=" << Cur.text << std::endl;
+    if (Cur.kind == TokenKind::Tok_LParen)
+    {
+      parenDepth++;
+      exprText += "(";
+      advance();
+      // std::cout << "[parsePrintStatement] After advance: Cur.kind=" << (int)Cur.kind << " text=" << Cur.text << std::endl;
+      continue;
+    }
+    if (Cur.kind == TokenKind::Tok_RParen)
+    {
+      parenDepth--;
+      if (parenDepth == 0)
+      {
+        advance();
+        // std::cout << "[parsePrintStatement] After advance: Cur.kind=" << (int)Cur.kind << " text=" << Cur.text << std::endl;
+        break;
+      }
+      exprText += ")";
+      advance();
+      // std::cout << "[parsePrintStatement] After advance: Cur.kind=" << (int)Cur.kind << " text=" << Cur.text << std::endl;
+      continue;
+    }
+    exprText += Cur.text;
+    advance();
+    // std::cout << "[parsePrintStatement] After advance: Cur.kind=" << (int)Cur.kind << " text=" << Cur.text << std::endl;
+  }
+  if (parenDepth != 0)
+    return error("expected ')' after print argument");
+  // Construct PrintStmt AST node (for now, just store exprText)
+  if (printKind == TokenKind::Tok_ConsoleError)
+  {
+    // std::cout << "[parsePrintStatement] Creating PrintStmt for console.error: " << exprText << std::endl;
+  }
+
+  // Parse as function call or literal
+  std::unique_ptr<Expr> exprNode;
+  if (exprText.find("(") != std::string::npos && exprText.back() == ')')
+  {
+    // Function call: e.g. test()
+    size_t lparen = exprText.find('(');
+    std::string callee = exprText.substr(0, lparen);
+    // For now, ignore arguments (assume no args)
+    exprNode = std::make_unique<CallExpr>(callee, std::vector<std::unique_ptr<Expr>>{});
+  }
+  else
+  {
+    // Literal or string literal
+    std::string lit = exprText;
+    if (lit.size() >= 2 && ((lit.front() == '"' && lit.back() == '"') || (lit.front() == '\'' && lit.back() == '\'')))
+    {
+      lit = lit.substr(1, lit.size() - 2);
+    }
+    exprNode = std::make_unique<LiteralExpr>(lit);
+  }
+  auto stmt = std::make_unique<PrintStmt>(std::move(exprNode), printKind);
+  // Debug: print AST node for PrintStmt
+  if (auto lit = dynamic_cast<LiteralExpr *>(stmt->expr.get()))
+  {
+    // std::cout << "[Parser] PrintStmt: LiteralExpr value = " << lit->value << std::endl;
+  }
+  else if (auto call = dynamic_cast<CallExpr *>(stmt->expr.get()))
+  {
+    // std::cout << "[Parser] PrintStmt: CallExpr callee = " << call->callee << std::endl;
+  }
+  return ParseResult{true, std::string(), std::move(stmt)};
 }
 
 bool Parser::parseImportedBinding()
@@ -442,13 +522,13 @@ bool Parser::parseIdentifierName()
 {
   // identifierName : identifier | reservedWord
   // First try identifier production.
-  std::cerr << "DEBUG: parseIdentifierName start Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
+  // std::cerr << "DEBUG: parseIdentifierName start Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   if (parseIdentifier())
   {
     advance();
     return true;
   }
-  std::cerr << "DEBUG: parseIdentifierName after parseIdentifier Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
+  // std::cerr << "DEBUG: parseIdentifierName after parseIdentifier Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   return parseReservedWord();
 }
 
@@ -597,7 +677,8 @@ std::optional<ParseResult> Parser::parseStatementList()
 
 std::optional<ParseResult> Parser::parseStatement()
 {
-  std::cerr << "DEBUG: enter parseStatement Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
+  std::cout << "[parseStatement] Cur.kind=" << (int)Cur.kind << " text=" << Cur.text << std::endl;
+  // std::cerr << "DEBUG: enter parseStatement Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   // Try block
   if (auto b = parseBlock())
     return b;
@@ -644,7 +725,7 @@ std::optional<ParseResult> Parser::parseStatement()
     return w;
   if (auto sw = parseSwitchStatement())
     return sw;
-  std::cerr << "DEBUG: exit parseStatement no match Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
+  // std::cerr << "DEBUG: exit parseStatement no match Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   return std::nullopt;
 }
 
@@ -1008,41 +1089,52 @@ std::optional<ParseResult> Parser::parseDeclaration()
   }
   case TokenKind::Tok_Function:
   {
-    // functionDeclaration : Async? Function_ '*'? identifier '(' formalParameterList? ')' functionBody
-    // We conservatively accept a function by consuming tokens until the function body ends.
+    // functionDeclaration : Async? Function identifier '(' params ')' '{' body '}'
     if (Cur.kind == TokenKind::Tok_Async)
       advance();
     if (Cur.kind != TokenKind::Tok_Function)
       return std::nullopt;
     advance();
-    // optional '*' (not tokenized specially here)
     // optional identifier
-    if (parseIdentifierName())
+    // Accept optional identifier, but don't require it
+    if (Cur.kind == TokenKind::Tok_Identifier)
     {
-      // ok
+      parseIdentifierName();
     }
-    // skip to next '{'
-    while (Cur.kind != TokenKind::Tok_LBrace && Cur.kind != TokenKind::Tok_EOF)
-      advance();
-    if (Cur.kind == TokenKind::Tok_LBrace)
+    if (Cur.kind != TokenKind::Tok_LParen)
+      return error("expected '(' after function declaration");
+    advance();
+    // Consume parameters until ')'
+    int parenDepth = 1;
+    while (Cur.kind != TokenKind::Tok_EOF && parenDepth > 0)
     {
-      // consume functionBody
-      int depth = 0;
-      while (Cur.kind != TokenKind::Tok_EOF)
+      if (Cur.kind == TokenKind::Tok_LParen)
       {
-        if (Cur.kind == TokenKind::Tok_LBrace)
-          depth++;
-        else if (Cur.kind == TokenKind::Tok_RBrace)
-        {
-          depth--;
-          if (depth == 0)
-          {
-            advance();
-            break;
-          }
-        }
+        parenDepth++;
         advance();
+        continue;
       }
+      if (Cur.kind == TokenKind::Tok_RParen)
+      {
+        parenDepth--;
+        advance();
+        continue;
+      }
+      advance();
+    }
+    // Expect '{' for function body
+    if (Cur.kind != TokenKind::Tok_LBrace)
+      return error("expected '{' after function parameter list");
+    // Consume function body until matching '}'
+    int braceDepth = 1;
+    advance();
+    while (Cur.kind != TokenKind::Tok_EOF && braceDepth > 0)
+    {
+      if (Cur.kind == TokenKind::Tok_LBrace)
+        braceDepth++;
+      else if (Cur.kind == TokenKind::Tok_RBrace)
+        braceDepth--;
+      advance();
     }
     return ParseResult{true, std::string(), nullptr};
   }
@@ -1054,29 +1146,26 @@ std::optional<ParseResult> Parser::parseDeclaration()
 std::optional<ParseResult> Parser::parseThrowStatement()
 {
   // throwStatement : Throw {this.notLineTerminator()}? expressionSequence eos
-  if (Cur.kind != TokenKind::Tok_Throw)
+  if (Cur.kind != TokenKind::Tok_Print && Cur.kind != TokenKind::Tok_ConsoleLog)
     return std::nullopt;
-  // capture throw token to check line terminator predicate
-  Token throwTok = Cur;
   advance();
-  // If next token is eos, that's an error per grammar (throw requires expression)
-  if (Cur.kind == TokenKind::Tok_Semi || Cur.kind == TokenKind::Tok_EOF)
-    return error("expected expression after throw");
-  // check notLineTerminator predicate: only parse expressionSequence when no line terminator between
-  size_t from = throwTok.pos + throwTok.text.size();
-  size_t to = Cur.pos;
-  if (!L.ContainsLineTerminatorBetween(from, to))
+  if (Cur.kind != TokenKind::Tok_LParen)
+    return error("expected '('");
+  advance();
+  // Accept any tokens until matching ')'
+  int parenDepth = 1;
+  while (Cur.kind != TokenKind::Tok_EOF && parenDepth > 0)
   {
-    if (!parseExpressionSequence())
-      return error("invalid throw expression");
+    if (Cur.kind == TokenKind::Tok_LParen)
+    {
+      parenDepth++;
+    }
+    else if (Cur.kind == TokenKind::Tok_RParen)
+    {
+      parenDepth--;
+    }
+    advance();
   }
-  else
-  {
-    // line terminator present -> grammar forbids expression; treat as error
-    return error("line terminator not allowed after 'throw'");
-  }
-  // accept eos
-  parseEos();
   return ParseResult{true, std::string(), nullptr};
 }
 
@@ -1181,13 +1270,61 @@ std::optional<ParseResult> Parser::parseFunctionDeclaration()
   // optional '*' (not tokenized specially here; accept a Multiply token or skip if absent)
   if (Cur.kind == TokenKind::Tok_Multiply)
     advance();
-  // optional identifier
-  parseIdentifierName(); // conservative: ignore failure
-  // expect '(' parameters ')' — we'll be conservative and consume until matching ')'
+  // required identifier (function name)
+  if (!parseIdentifierName())
+  {
+    return error("expected function name after 'function' keyword");
+  }
+  // expect '(' for parameter list
   if (Cur.kind != TokenKind::Tok_LParen)
     return error("expected '(' after function declaration");
+  advance();
   // consume parameter list tokens until matching ')'
-  int depth = 0;
+  int depth = 1;
+  while (Cur.kind != TokenKind::Tok_EOF && depth > 0)
+  {
+    if (Cur.kind == TokenKind::Tok_LParen)
+    {
+      depth++;
+      advance();
+      continue;
+    }
+    if (Cur.kind == TokenKind::Tok_RParen)
+    {
+      depth--;
+      advance();
+      continue;
+    }
+    advance();
+  }
+  if (depth != 0)
+    return error("expected ')' after function parameter list");
+  // expect '{' for function body
+  if (Cur.kind != TokenKind::Tok_LBrace)
+    return error("expected '{' after function parameter list");
+  // consume function body until matching '}'
+  int braceDepth = 1;
+  advance();
+  while (Cur.kind != TokenKind::Tok_EOF && braceDepth > 0)
+  {
+    if (Cur.kind == TokenKind::Tok_LBrace)
+    {
+      braceDepth++;
+      advance();
+      continue;
+    }
+    if (Cur.kind == TokenKind::Tok_RBrace)
+    {
+      braceDepth--;
+      advance();
+      continue;
+    }
+    advance();
+  }
+  if (braceDepth != 0)
+    return error("expected '}' after function body");
+  // For now, just return success
+  return ParseResult{true, std::string(), nullptr};
   while (Cur.kind != TokenKind::Tok_EOF)
   {
     if (Cur.kind == TokenKind::Tok_LParen)
@@ -1210,34 +1347,39 @@ std::optional<ParseResult> Parser::parseFunctionDeclaration()
 
 std::optional<ParseResult> Parser::parseClassDeclaration()
 {
-  std::cerr << "DEBUG: enter parseClassDeclaration Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
+  // std::cerr << "DEBUG: enter parseClassDeclaration Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   // classDeclaration : Class identifier classTail
   if (Cur.kind != TokenKind::Tok_Class)
     return std::nullopt;
   advance();
-  std::cerr << "DEBUG: after Class advance Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
+  // std::cerr << "DEBUG: after Class advance Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   // require identifier (class name) if present: use parseIdentifierName
   if (parseIdentifierName())
   {
-    std::cerr << "DEBUG: after class name advance Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
+    // std::cerr << "DEBUG: after class name advance Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   }
-  std::cerr << "DEBUG: after parseIdentifierName Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
+  // std::cerr << "DEBUG: after parseIdentifierName Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   // Robustly advance to '{' after class name
-  if (Cur.kind != TokenKind::Tok_LBrace) {
+  if (Cur.kind != TokenKind::Tok_LBrace)
+  {
     std::cerr << "WARNING: Forcibly advancing to '{' after class name. Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
-    while (Cur.kind != TokenKind::Tok_LBrace && Cur.kind != TokenKind::Tok_EOF) {
+    while (Cur.kind != TokenKind::Tok_LBrace && Cur.kind != TokenKind::Tok_EOF)
+    {
       advance();
       std::cerr << "TRACE: Advancing to '{'... Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
     }
   }
-  if (Cur.kind == TokenKind::Tok_LBrace) {
+  if (Cur.kind == TokenKind::Tok_LBrace)
+  {
     if (!parseClassTail())
       return error("invalid class tail");
-  } else {
+  }
+  else
+  {
     std::cerr << "ERROR: Expected '{' after class name, got Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
     return error("expected '{' after class name");
   }
-  std::cerr << "DEBUG: after parseClassTail Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
+  // std::cerr << "DEBUG: after parseClassTail Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   // After class body, forcibly advance until RBrace (closing class)
   while (Cur.kind != TokenKind::Tok_RBrace && Cur.kind != TokenKind::Tok_EOF)
   {
@@ -1248,7 +1390,7 @@ std::optional<ParseResult> Parser::parseClassDeclaration()
   if (Cur.kind == TokenKind::Tok_RBrace)
   {
     advance();
-    std::cerr << "DEBUG: after advancing past RBrace Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
+    // std::cerr << "DEBUG: after advancing past RBrace Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   }
   // Consume trailing semicolon or EOS after class declaration
   parseEos();
@@ -1257,7 +1399,7 @@ std::optional<ParseResult> Parser::parseClassDeclaration()
 
 bool Parser::parseClassTail()
 {
-  std::cerr << "DEBUG: enter parseClassTail Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
+  // std::cerr << "DEBUG: enter parseClassTail Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   // classTail : (Extends singleExpression)? '{' classElement* '}'
   if (Cur.kind == TokenKind::Tok_Extends)
   {
@@ -1268,79 +1410,97 @@ bool Parser::parseClassTail()
   if (Cur.kind != TokenKind::Tok_LBrace)
     return false;
   advance();
-  std::cerr << "DEBUG: after LBrace advance Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
+  // std::cerr << "DEBUG: after LBrace advance Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   // zero or more classElement
   int elemCount = 0;
   // Consume tokens until closing brace is found
-  while (Cur.kind != TokenKind::Tok_RBrace && Cur.kind != TokenKind::Tok_EOF) {
-    std::cerr << "DEBUG: parseClassTail loop elem=" << elemCount << " Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
+  while (Cur.kind != TokenKind::Tok_RBrace && Cur.kind != TokenKind::Tok_EOF)
+  {
+    // std::cerr << "DEBUG: parseClassTail loop elem=" << elemCount << " Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
     Token before = Cur;
     bool consumed = parseClassElement();
     std::cerr << "TRACE: After parseClassElement, Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << " (before.pos=" << before.pos << ")\n";
-    if (!consumed || (Cur.pos == before.pos && Cur.kind == before.kind)) {
+    if (!consumed || (Cur.pos == before.pos && Cur.kind == before.kind))
+    {
       std::cerr << "TRACE: parseClassTail did NOT consume token, forcibly advancing. Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
       advance();
     }
     ++elemCount;
   }
-  if (Cur.kind != TokenKind::Tok_RBrace) {
+  if (Cur.kind != TokenKind::Tok_RBrace)
+  {
     std::cerr << "ERROR: parseClassTail did not find closing RBrace, Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
     return false;
   }
   // Do not advance after closing brace; let parseClassDeclaration handle it
-  std::cerr << "DEBUG: at RBrace Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
+  // std::cerr << "DEBUG: at RBrace Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   return true;
 }
 
 bool Parser::parseClassElement()
 {
   // Always try to parse a class element name (static, get, set, identifier, etc.)
-  std::cerr << "DEBUG: parseClassElement entry Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
+  // std::cerr << "DEBUG: parseClassElement entry Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   Token startElem = Cur;
-  if (!parseClassElementName()) {
+  if (!parseClassElementName())
+  {
     std::cerr << "WARNING: Unrecognized class member, forcibly advancing token to avoid stall. Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
     advance();
     std::cerr << "TRACE: parseClassElementName did NOT consume token, forcibly advanced. Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
     return true;
   }
-  std::cerr << "DEBUG: after parseClassElementName Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
+  // std::cerr << "DEBUG: after parseClassElementName Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   std::cerr << "TRACE: parseClassElementName consumed token(s), now Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   std::cerr << "TRACE: parseClassElement startElem.pos=" << startElem.pos << " endElem.pos=" << Cur.pos << "\n";
 
-  // Field assignment: '=' singleExpression ';'? 
-  if (Cur.kind == TokenKind::Tok_Assign) {
+  // Field assignment: '=' singleExpression ';'?
+  if (Cur.kind == TokenKind::Tok_Assign)
+  {
     advance();
     // Consume everything until semicolon, RBrace, or EOF
-    while (Cur.kind != TokenKind::Tok_Semi && Cur.kind != TokenKind::Tok_EOF && Cur.kind != TokenKind::Tok_RBrace) {
+    while (Cur.kind != TokenKind::Tok_Semi && Cur.kind != TokenKind::Tok_EOF && Cur.kind != TokenKind::Tok_RBrace)
+    {
       advance();
     }
-    if (Cur.kind == TokenKind::Tok_Semi) advance();
+    if (Cur.kind == TokenKind::Tok_Semi)
+      advance();
     return true;
   }
 
   // Method or getter/setter: '(' ... ')' '{' ... '}'
-  if (Cur.kind == TokenKind::Tok_LParen) {
+  if (Cur.kind == TokenKind::Tok_LParen)
+  {
     // Consume params until ')'
     int depth = 0;
-    while (Cur.kind != TokenKind::Tok_EOF) {
-      if (Cur.kind == TokenKind::Tok_LParen) depth++;
-      if (Cur.kind == TokenKind::Tok_RParen) {
+    while (Cur.kind != TokenKind::Tok_EOF)
+    {
+      std::cout << "[Parser] Top-level token kind: " << (int)Cur.kind << " text: " << Cur.text << std::endl;
+      if (Cur.kind == TokenKind::Tok_LParen)
+        depth++;
+      if (Cur.kind == TokenKind::Tok_RParen)
+      {
         depth--;
         advance();
-        if (depth == 0) break;
+        if (depth == 0)
+          break;
         continue;
       }
       advance();
     }
     // After params, expect method body '{' ... '}'
-    if (Cur.kind == TokenKind::Tok_LBrace) {
+    if (Cur.kind == TokenKind::Tok_LBrace)
+    {
       int braceDepth = 0;
-      while (Cur.kind != TokenKind::Tok_EOF) {
-        if (Cur.kind == TokenKind::Tok_LBrace) braceDepth++;
-        if (Cur.kind == TokenKind::Tok_RBrace) {
+      while (Cur.kind != TokenKind::Tok_EOF)
+      {
+        if (Cur.kind == TokenKind::Tok_LBrace)
+          braceDepth++;
+        if (Cur.kind == TokenKind::Tok_RBrace)
+        {
           braceDepth--;
           advance();
-          if (braceDepth == 0) break;
+          if (braceDepth == 0)
+            break;
           continue;
         }
         advance();
@@ -1350,14 +1510,19 @@ bool Parser::parseClassElement()
   }
 
   // Block (for static blocks): '{' ... '}'
-  if (Cur.kind == TokenKind::Tok_LBrace) {
+  if (Cur.kind == TokenKind::Tok_LBrace)
+  {
     int braceDepth = 0;
-    while (Cur.kind != TokenKind::Tok_EOF) {
-      if (Cur.kind == TokenKind::Tok_LBrace) braceDepth++;
-      if (Cur.kind == TokenKind::Tok_RBrace) {
+    while (Cur.kind != TokenKind::Tok_EOF)
+    {
+      if (Cur.kind == TokenKind::Tok_LBrace)
+        braceDepth++;
+      if (Cur.kind == TokenKind::Tok_RBrace)
+      {
         braceDepth--;
         advance();
-        if (braceDepth == 0) break;
+        if (braceDepth == 0)
+          break;
         continue;
       }
       advance();
@@ -1366,58 +1531,145 @@ bool Parser::parseClassElement()
   }
 
   // Semicolon (empty member)
-  if (Cur.kind == TokenKind::Tok_Semi) {
+  if (Cur.kind == TokenKind::Tok_Semi)
+  {
     advance();
     return true;
   }
 
   // If nothing matched, forcibly advance until Tok_RBrace, Tok_EOF, or Tok_Semi
   std::cerr << "WARNING: parseClassElement did not match any recognizer, forcibly advancing until Tok_RBrace, Tok_EOF, or Tok_Semi. Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
-  while (Cur.kind != TokenKind::Tok_RBrace && Cur.kind != TokenKind::Tok_EOF && Cur.kind != TokenKind::Tok_Semi) {
+  while (Cur.kind != TokenKind::Tok_RBrace && Cur.kind != TokenKind::Tok_EOF && Cur.kind != TokenKind::Tok_Semi)
+  {
     advance();
   }
-  if (Cur.kind == TokenKind::Tok_Semi) advance();
+  if (Cur.kind == TokenKind::Tok_Semi)
+    advance();
   return true;
 }
 
 std::optional<ParseResult> Parser::parseSourceElements()
 {
   // sourceElements : sourceElement*
-  std::optional<ParseResult> last;
+  std::vector<std::unique_ptr<Stmt>> stmts;
   int iter = 0;
-  while (true) {
-    std::cerr << "DEBUG: parseSourceElements iter=" << iter << " Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
+  while (Cur.kind != TokenKind::Tok_EOF)
+  {
     Token before = Cur;
-    // Only parse class declaration if at 'class' keyword
-    if (Cur.kind == TokenKind::Tok_Class) {
+    bool advanced = false;
+    std::unique_ptr<Stmt> stmt;
+    // Top-level class declaration
+    if (Cur.kind == TokenKind::Tok_Class)
+    {
       auto s = parseClassDeclaration();
-      if (s)
-        std::cerr << "DEBUG: parseSourceElements parsed a class declaration; Cur after parseClassDeclaration: kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
       if (!s)
         break;
-      last = std::move(*s);
-    } else if (Cur.kind == TokenKind::Tok_Import || Cur.kind == TokenKind::Tok_Export || Cur.kind == TokenKind::Tok_Print) {
-      auto s = parseStatement();
-      if (s)
-        std::cerr << "DEBUG: parseSourceElements parsed a statement; Cur after parseStatement: kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
-      if (!s)
-        break;
-      last = std::move(*s);
-    } else if (Cur.kind == TokenKind::Tok_EOF) {
-      break;
-    } else {
-      // Forcibly advance non-top-level token
-      std::cerr << "WARNING: parseSourceElements forcibly advancing non-top-level token Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
-      advance();
+      stmt = std::move(s->stmt);
+      advanced = true;
     }
-    // If the parser did not advance, forcibly advance to avoid infinite loop
-    if (Cur.pos == before.pos && Cur.kind == before.kind) {
+    // Top-level function declaration
+    else if (Cur.kind == TokenKind::Tok_Function)
+    {
+      auto s = parseFunctionDeclaration();
+      if (!s)
+        break;
+      stmt = std::move(s->stmt);
+      advanced = true;
+    }
+    // Top-level variable declaration (const, var)
+    else if (Cur.kind == TokenKind::Tok_Const || Cur.kind == TokenKind::Tok_Var)
+    {
+      bool ok = parseVariableDeclaration();
+      if (!ok)
+        break;
+      advanced = true;
+    }
+    // Top-level import/export/print
+    else if (Cur.kind == TokenKind::Tok_Import || Cur.kind == TokenKind::Tok_Export || Cur.kind == TokenKind::Tok_Print)
+    {
+      auto s = parseStatement();
+      if (!s)
+        break;
+      stmt = std::move(s->stmt);
+      advanced = true;
+    }
+    else if (Cur.kind == TokenKind::Tok_ConsoleLog)
+    {
+      auto s = parsePrintStatement();
+      if (!s)
+        break;
+      stmt = std::move(s->stmt);
+      advanced = true;
+      parseEos();
+    }
+    else if (Cur.kind == TokenKind::Tok_ConsoleError)
+    {
+      auto s = parsePrintStatement();
+      if (!s)
+        break;
+      stmt = std::move(s->stmt);
+      advanced = true;
+      parseEos();
+    }
+    else if (Cur.kind == TokenKind::Tok_ConsoleWarn)
+    {
+      auto s = parsePrintStatement();
+      if (!s)
+        break;
+      stmt = std::move(s->stmt);
+      advanced = true;
+      parseEos();
+    }
+    else if (Cur.kind == TokenKind::Tok_ConsoleInfo)
+    {
+      auto s = parsePrintStatement();
+      if (!s)
+        break;
+      stmt = std::move(s->stmt);
+      advanced = true;
+      parseEos();
+    }
+    else if (Cur.kind == TokenKind::Tok_ConsoleSuccess) {
+      auto s = parsePrintStatement();
+      if (!s)
+        break;
+      stmt = std::move(s->stmt);
+      advanced = true;
+      parseEos();
+    }
+    // Top-level expression statement (e.g., assignments, calls)
+    else if (Cur.kind == TokenKind::Tok_Identifier || Cur.kind == TokenKind::Tok_LParen || Cur.kind == TokenKind::Tok_Number || Cur.kind == TokenKind::Tok_StringLiteral)
+    {
+      auto s = parseExpressionStatement();
+      if (s)
+      {
+        stmt = std::move(s->stmt);
+        advanced = true;
+      }
+      else
+      {
+        advance();
+        advanced = true;
+      }
+    }
+    else
+    {
+      advance();
+      advanced = true;
+    }
+    if (stmt)
+      stmts.push_back(std::move(stmt));
+    if (!advanced || (Cur.pos == before.pos && Cur.kind == before.kind))
+    {
       advance();
       std::cerr << "WARNING: forcibly advanced token in parseSourceElements loop Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
     }
     ++iter;
   }
-  return last;
+  if (stmts.empty())
+    return std::nullopt;
+  auto prog = std::make_unique<Program>(std::move(stmts));
+  return ParseResult{true, std::string(), std::move(prog)};
 }
 
 bool Parser::parseMethodDefinition()
@@ -1512,23 +1764,23 @@ bool Parser::parseClassElementName()
 {
   // classElementName : propertyName | privateIdentifier
   // propertyName : identifierName | StringLiteral | numericLiteral | '[' singleExpression ']'
-  std::cerr << "DEBUG: parseClassElementName Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
+  // std::cerr << "DEBUG: parseClassElementName Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   // Always advance for identifier-like tokens (maximal robustness)
   if (Cur.kind == TokenKind::Tok_Identifier || Cur.kind == TokenKind::Tok_Static || Cur.kind == TokenKind::Tok_Async || Cur.text == "get" || Cur.text == "set" || Cur.text == "constructor" || Cur.kind == TokenKind::Tok_Private || Cur.kind == TokenKind::Tok_Public || Cur.kind == TokenKind::Tok_Protected)
   {
-    std::cerr << "DEBUG: parseClassElementName advancing identifier-like Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
+    // std::cerr << "DEBUG: parseClassElementName advancing identifier-like Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
     advance();
     return true;
   }
   if (Cur.kind == TokenKind::Tok_StringLiteral || Cur.kind == TokenKind::Tok_DecimalLiteral || Cur.kind == TokenKind::Tok_Integer)
   {
-    std::cerr << "DEBUG: parseClassElementName advancing literal Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
+    // std::cerr << "DEBUG: parseClassElementName advancing literal Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
     advance();
     return true;
   }
   if (Cur.kind == TokenKind::Tok_LBracket)
   {
-    std::cerr << "DEBUG: parseClassElementName entering computed property Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
+    // std::cerr << "DEBUG: parseClassElementName entering computed property Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
     advance();
     if (!parseSingleExpression())
       return false;
@@ -1539,7 +1791,7 @@ bool Parser::parseClassElementName()
   }
   if (Cur.kind == TokenKind::Tok_Hashtag)
   {
-    std::cerr << "DEBUG: parseClassElementName entering private identifier Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
+    // std::cerr << "DEBUG: parseClassElementName entering private identifier Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
     return parsePrivateIdentifier();
   }
   // If nothing matches, forcibly advance and return true
@@ -1627,8 +1879,9 @@ std::optional<ParseResult> Parser::parseVariableStatement()
   // accept semicolon or EOF as eos
   parseEos();
   // If the last variable declaration included a type annotation, print it
-  if (LastTypeParsed) {
-    std::cerr << "DEBUG: parsed type annotation: " << typeToString(LastTypeParsed.get()) << "\n";
+  if (LastTypeParsed)
+  {
+    // std::cerr << "DEBUG: parsed type annotation: " << typeToString(LastTypeParsed.get()) << "\n";
     // clear it; variable declaration handling is currently per-declaration so
     // we don't attach types to AST nodes yet.
     LastTypeParsed.reset();
@@ -1636,7 +1889,8 @@ std::optional<ParseResult> Parser::parseVariableStatement()
   return ParseResult{true, std::string(), nullptr};
 }
 
-std::unique_ptr<Type> Parser::takeParsedType() {
+std::unique_ptr<Type> Parser::takeParsedType()
+{
   return std::move(LastTypeParsed);
 }
 
@@ -1720,15 +1974,19 @@ bool Parser::parseType()
 
   // We'll build a Type AST in LastTypeParsed. Use local lambdas that return
   // std::unique_ptr<Type> for subcomponents and nullptr on failure.
-  std::function<std::unique_ptr<Type>()> parsePrimary = [&]() -> std::unique_ptr<Type> {
+  std::function<std::unique_ptr<Type>()> parsePrimary = [&]() -> std::unique_ptr<Type>
+  {
     if (Cur.kind == TokenKind::Tok_LParen)
     {
       advance();
       // reuse outer parseType by recursive call: parseType will populate LastTypeParsed
-      if (!parseType()) return nullptr; // parseType will populate LastTypeParsed
+      if (!parseType())
+        return nullptr; // parseType will populate LastTypeParsed
       auto t = takeParsedType();
-      if (!t) return nullptr;
-      if (Cur.kind != TokenKind::Tok_RParen) return nullptr;
+      if (!t)
+        return nullptr;
+      if (Cur.kind != TokenKind::Tok_RParen)
+        return nullptr;
       advance();
       return t;
     }
@@ -1740,14 +1998,16 @@ bool Parser::parseType()
       std::string raw;
       while (Cur.kind != TokenKind::Tok_EOF)
       {
-        if (Cur.kind == TokenKind::Tok_LBrace) depth++;
+        if (Cur.kind == TokenKind::Tok_LBrace)
+          depth++;
         if (Cur.kind == TokenKind::Tok_RBrace)
         {
           depth--;
           // include '}' and advance
           raw += Cur.text;
           advance();
-          if (depth == 0) break;
+          if (depth == 0)
+            break;
           continue;
         }
         raw += Cur.text;
@@ -1762,13 +2022,15 @@ bool Parser::parseType()
       int depth = 0;
       while (Cur.kind != TokenKind::Tok_EOF)
       {
-        if (Cur.kind == TokenKind::Tok_LBracket) depth++;
+        if (Cur.kind == TokenKind::Tok_LBracket)
+          depth++;
         if (Cur.kind == TokenKind::Tok_RBracket)
         {
           depth--;
           raw += Cur.text;
           advance();
-          if (depth == 0) break;
+          if (depth == 0)
+            break;
           continue;
         }
         raw += Cur.text;
@@ -1806,14 +2068,21 @@ bool Parser::parseType()
         while (Cur.kind != TokenKind::Tok_EOF && Cur.kind != TokenKind::Tok_MoreThan)
         {
           // parse a type argument by recursively invoking parseType
-          if (!parseType()) return nullptr;
+          if (!parseType())
+            return nullptr;
           auto arg = takeParsedType();
-          if (!arg) return nullptr;
+          if (!arg)
+            return nullptr;
           gen->Args.push_back(std::move(arg));
-          if (Cur.kind == TokenKind::Tok_Comma) { advance(); continue; }
+          if (Cur.kind == TokenKind::Tok_Comma)
+          {
+            advance();
+            continue;
+          }
           // otherwise expect '>' or more tokens
         }
-        if (Cur.kind == TokenKind::Tok_MoreThan) advance();
+        if (Cur.kind == TokenKind::Tok_MoreThan)
+          advance();
         base = std::move(gen);
       }
       // array suffixes '[]'
@@ -1837,7 +2106,8 @@ bool Parser::parseType()
   };
 
   auto left = parsePrimary();
-  if (!left) return false;
+  if (!left)
+    return false;
 
   // handle union '|' and intersection '&' operators
   while (Cur.kind == TokenKind::Tok_BitOr || Cur.kind == TokenKind::Tok_BitAnd)
@@ -1845,14 +2115,19 @@ bool Parser::parseType()
     bool isUnion = (Cur.kind == TokenKind::Tok_BitOr);
     advance();
     auto right = parsePrimary();
-    if (!right) return false;
+    if (!right)
+      return false;
     if (isUnion)
     {
       auto u = std::make_unique<UnionType>();
       // flatten if left is already a union
-      if (auto leftU = dynamic_cast<UnionType*>(left.get())) {
-        for (auto &o : leftU->Options) u->Options.push_back(std::move(o));
-      } else {
+      if (auto leftU = dynamic_cast<UnionType *>(left.get()))
+      {
+        for (auto &o : leftU->Options)
+          u->Options.push_back(std::move(o));
+      }
+      else
+      {
         u->Options.push_back(std::move(left));
       }
       u->Options.push_back(std::move(right));
@@ -1861,9 +2136,13 @@ bool Parser::parseType()
     else
     {
       auto it = std::make_unique<IntersectionType>();
-      if (auto leftI = dynamic_cast<IntersectionType*>(left.get())) {
-        for (auto &p : leftI->Parts) it->Parts.push_back(std::move(p));
-      } else {
+      if (auto leftI = dynamic_cast<IntersectionType *>(left.get()))
+      {
+        for (auto &p : leftI->Parts)
+          it->Parts.push_back(std::move(p));
+      }
+      else
+      {
         it->Parts.push_back(std::move(left));
       }
       it->Parts.push_back(std::move(right));

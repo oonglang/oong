@@ -1,0 +1,12 @@
+#!/usr/bin/env oong
+
+function fib(n) {
+  return n < 2 ? n : fib(n - 1) + fib(n - 2);
+}
+
+const start = Date.now();
+const result = fib(35);
+const end = Date.now();
+
+print("Result:", result);
+print("Time taken:", end - start, "ms");

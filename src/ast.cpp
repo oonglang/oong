@@ -5,7 +5,13 @@ std::string stmtToString(const Stmt* s) {
   if (!s) return "<null>";
   if (auto p = dynamic_cast<const PrintStmt*>(s)) {
     std::ostringstream os;
-    os << "Print(" << p->Value << ")";
+    if (auto lit = dynamic_cast<LiteralExpr*>(p->expr.get())) {
+      os << "Print(" << lit->value << ")";
+    } else if (auto call = dynamic_cast<CallExpr*>(p->expr.get())) {
+      os << "Print(" << call->callee << "()" << ")";
+    } else {
+      os << "Print(<expr>)";
+    }
     return os.str();
   }
   return "<unknown-stmt>";

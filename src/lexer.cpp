@@ -1,3 +1,4 @@
+#include <iostream>
 #include "lexer.h"
 #include "token.h"
 #include <cctype>
@@ -245,24 +246,26 @@ bool Lexer::skipSingleLineComment()
 
 bool Lexer::skipHashBang()
 {
-  // only at start of file
-  if (Pos != 0)
-    return false;
-  // allow optional UTF-8 BOM (0xEF 0xBB 0xBF) before the '#!'
-  size_t checkPos = Pos;
-  if (Src.size() >= 3 && static_cast<unsigned char>(Src[0]) == 0xEF && static_cast<unsigned char>(Src[1]) == 0xBB && static_cast<unsigned char>(Src[2]) == 0xBF)
-    checkPos = 3;
-  if (checkPos + 1 >= Src.size() || Src[checkPos] != '#' || Src[checkPos + 1] != '!')
-    return false;
-  Pos = checkPos + 2; // skip '#!' (and BOM if present by advancing past it)
-  while (Pos < Src.size())
-  {
-    size_t lt = lineTerminatorLength(Src, Pos);
-    if (lt)
-      break;
-    ++Pos;
+  // Always check for hashbang at the very start of lexing
+  if (Pos == 0) {
+    size_t checkPos = 0;
+    // allow optional UTF-8 BOM (0xEF 0xBB 0xBF) before the '#!'
+    if (Src.size() >= 3 && static_cast<unsigned char>(Src[0]) == 0xEF && static_cast<unsigned char>(Src[1]) == 0xBB && static_cast<unsigned char>(Src[2]) == 0xBF)
+      checkPos = 3;
+    if (checkPos + 1 < Src.size() && Src[checkPos] == '#' && Src[checkPos + 1] == '!') {
+      Pos = checkPos + 2;
+      while (Pos < Src.size()) {
+        size_t lt = lineTerminatorLength(Src, Pos);
+        if (lt) {
+          Pos += lt;
+          break;
+        }
+        ++Pos;
+      }
+      return true;
+    }
   }
-  return true;
+  return false;
 }
 
 bool Lexer::skipHtmlComment()
@@ -653,7 +656,52 @@ Token Lexer::nextToken()
       }
       break;
     }
-    std::string txt = Src.substr(idStart, Pos - idStart);
+  std::string txt = Src.substr(idStart, Pos - idStart);
+  // Debug: print every identifier and special token
+  // std::cout << "[Lexer] TokenKind: " << (int)kind << " text: " << txt << std::endl; // 'kind' is not defined here
+    // Special case: combine console.error as Tok_ConsoleError
+  // ...existing code...
+    // Special case: combine console.log and console.error as single tokens
+    if (txt == "console") {
+      size_t p = Pos;
+      // Skip all whitespace before dot
+      while (p < Src.size() && isspace(Src[p])) ++p;
+      if (p < Src.size() && Src[p] == '.') {
+        ++p;
+        // Skip all whitespace before 'log', 'error', or 'warn'
+        while (p < Src.size() && isspace(Src[p])) ++p;
+        // Check for 'log'
+        if (p + 2 < Src.size() && Src.substr(p, 3) == "log") {
+          Pos = p + 3;
+          auto tok = makeToken(TokenKind::Tok_ConsoleLog, idStart, Pos - idStart);
+          return tok;
+        }
+        // Check for 'error'
+        if (p + 4 < Src.size() && Src.substr(p, 5) == "error") {
+          Pos = p + 5;
+          auto tok = makeToken(TokenKind::Tok_ConsoleError, idStart, Pos - idStart);
+          return tok;
+        }
+        // Check for 'warn'
+        if (p + 3 < Src.size() && Src.substr(p, 4) == "warn") {
+          Pos = p + 4;
+          auto tok = makeToken(TokenKind::Tok_ConsoleWarn, idStart, Pos - idStart);
+          return tok;
+        }
+        // Check for 'info'
+        if (p + 3 < Src.size() && Src.substr(p, 4) == "info") {
+          Pos = p + 4;
+          auto tok = makeToken(TokenKind::Tok_ConsoleInfo, idStart, Pos - idStart);
+          return tok;
+        }
+        // Check for 'success'
+        if (p + 6 < Src.size() && Src.substr(p, 7) == "success") {
+          Pos = p + 7;
+          auto tok = makeToken(TokenKind::Tok_ConsoleSuccess, idStart, Pos - idStart);
+          return tok;
+        }
+      }
+    }
     // TypeScript type keywords
     if (txt == "any")
       return makeToken(TokenKind::Tok_Any, idStart, txt.size());
@@ -675,6 +723,8 @@ Token Lexer::nextToken()
       return makeToken(TokenKind::Tok_Object, idStart, txt.size());
     if (txt == "print")
       return makeToken(TokenKind::Tok_Print, idStart, txt.size());
+    if (txt == "console.log")
+      return makeToken(TokenKind::Tok_ConsoleLog, idStart, txt.size());
     if (txt == "break")
       return makeToken(TokenKind::Tok_Break, idStart, txt.size());
     if (txt == "do")
@@ -1073,8 +1123,11 @@ Token Lexer::nextToken()
     }
     size_t len = (terminated ? (p - start) : (p - start));
     Pos = p;
-    if (terminated)
-      return makeToken(TokenKind::Tok_StringLiteral, start, len);
+    if (terminated) {
+      auto tok = makeToken(TokenKind::Tok_StringLiteral, start, len);
+      // std::cout << "[Lexer] Token: StringLiteral = " << tok.text << std::endl;
+      return tok;
+    }
     return makeToken(TokenKind::Tok_Invalid, start, len);
   }
 
