@@ -88,6 +88,10 @@ private:
   std::optional<ParseResult> parseVariableStatement();
   bool parseVariableDeclarationList();
   bool parseVariableDeclaration();
+  bool parseType();
+  // Ownership: parser will build a Type and store it in LastTypeParsed; call
+  // takeParsedType() to retrieve ownership.
+  std::unique_ptr<Type> takeParsedType();
   bool parseAssignable();
   bool parseSingleExpression();
   bool parseVarModifier();
@@ -131,5 +135,7 @@ private:
   // current token (approximates ANTLR's this.n("...") predicate).
   bool n(const std::string &s);
   void advance() { PrevTokenEnd = Cur.pos + Cur.text.size(); Cur = L.nextToken(); }
+  // Last parsed type (populated by parseType when it succeeds)
+  std::unique_ptr<Type> LastTypeParsed;
   ParseResult error(const std::string &msg) { return {false, msg, nullptr}; }
 };

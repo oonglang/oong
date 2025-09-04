@@ -5,6 +5,15 @@
 #include <sstream>
 
 enum class TokenKind {
+  Tok_Any,
+  Tok_Number,
+  Tok_Never,
+  Tok_Boolean,
+  Tok_String,
+  Tok_Unique,
+  Tok_Symbol,
+  Tok_Undefined,
+  Tok_Object,
   Tok_EOF,
   Tok_Print,
   Tok_Break,
@@ -130,6 +139,7 @@ enum class TokenKind {
   Tok_BinaryIntegerLiteral,
   Tok_BigBinaryIntegerLiteral,
   Tok_Integer,
+  Tok_Identifier,
   Tok_Invalid
 };
 

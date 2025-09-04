@@ -1,0 +1,9 @@
+// Advanced TypeScript type parsing tests
+let a: string | number;
+let b: A & B;
+let c: Map<string, number>;
+let d: Array<Map<string, number>[]>;
+let e: (string | number)[];
+let f: Promise<Array<string | number>>;
+let g: { x: number; y: string };
+let h: [number, string, boolean];

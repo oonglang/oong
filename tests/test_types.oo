@@ -1,0 +1,10 @@
+// TypeScript type keyword parsing test
+let x: any;
+let y: number;
+let z: never;
+let b: boolean;
+let s: string;
+let u: unique;
+let sym: symbol;
+let undef: undefined;
+let obj: object;

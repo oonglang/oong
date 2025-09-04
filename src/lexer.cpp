@@ -654,6 +654,25 @@ Token Lexer::nextToken()
       break;
     }
     std::string txt = Src.substr(idStart, Pos - idStart);
+    // TypeScript type keywords
+    if (txt == "any")
+      return makeToken(TokenKind::Tok_Any, idStart, txt.size());
+    if (txt == "number")
+      return makeToken(TokenKind::Tok_Number, idStart, txt.size());
+    if (txt == "never")
+      return makeToken(TokenKind::Tok_Never, idStart, txt.size());
+    if (txt == "boolean")
+      return makeToken(TokenKind::Tok_Boolean, idStart, txt.size());
+    if (txt == "string")
+      return makeToken(TokenKind::Tok_String, idStart, txt.size());
+    if (txt == "unique")
+      return makeToken(TokenKind::Tok_Unique, idStart, txt.size());
+    if (txt == "symbol")
+      return makeToken(TokenKind::Tok_Symbol, idStart, txt.size());
+    if (txt == "undefined")
+      return makeToken(TokenKind::Tok_Undefined, idStart, txt.size());
+    if (txt == "object")
+      return makeToken(TokenKind::Tok_Object, idStart, txt.size());
     if (txt == "print")
       return makeToken(TokenKind::Tok_Print, idStart, txt.size());
     if (txt == "break")
@@ -752,7 +771,7 @@ Token Lexer::nextToken()
       return makeToken(TokenKind::Tok_NullLiteral, idStart, txt.size());
     if (txt == "true" || txt == "false")
       return makeToken(TokenKind::Tok_BooleanLiteral, idStart, txt.size());
-    return makeToken(TokenKind::Tok_Invalid, idStart, txt.size());
+    return makeToken(TokenKind::Tok_Identifier, idStart, txt.size());
   }
 
   // Numbers: integers, decimals, hex/binary/octal, and BigInt variants
