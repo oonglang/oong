@@ -1,5 +1,6 @@
-console.warn("Warning message!");
-console.error("Error message!");
-console.log("Log message!");
-console.info("Info message!");
-console.success("Success message!");
+console.warn("Warning message!", 123, "abc","tttt",222);
+console.error("Error message!", 123, "abc");
+console.log("Log message!", 123, "abc");
+console.info("Info message!", 123, "abc");
+console.success("Success message!", 123, "abc");
+print("Print message!", 123, "abc");

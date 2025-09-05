@@ -20,7 +20,13 @@ int run_interpreter(const std::string &source) {
         if (s.empty()) return false;
         size_t i = 0;
         if (s[0] == '-') i = 1;
+        bool dot = false;
         for (; i < s.size(); ++i) {
+            if (s[i] == '.') {
+                if (dot) return false;
+                dot = true;
+                continue;
+            }
             if (!isdigit(s[i])) return false;
         }
         return true;
@@ -64,40 +70,40 @@ int run_interpreter(const std::string &source) {
     builder.SetInsertPoint(bb);
 
     // Execute all statements in Program
+    std::string yellow = "\033[33m";
+    std::string reset = "\033[0m";
     auto *prog = dynamic_cast<Program*>(R.stmt.get());
     if (prog) {
-        std::string yellow = "\033[33m";
-        std::string reset = "\033[0m";
+        // std::cerr << "[DEBUG] Program has " << prog->statements.size() << " statements\n";
         for (const auto& s : prog->statements) {
             if (auto ps = dynamic_cast<PrintStmt*>(s.get())) {
-                std::string result;
-                if (auto lit = dynamic_cast<LiteralExpr*>(ps->expr.get())) {
-                    result = lit->value;
-                } else if (auto call = dynamic_cast<CallExpr*>(ps->expr.get())) {
-                    if (call->callee == "test") {
-                        result = "123";
-                    } else {
-                        result = call->callee + "()";
-                    }
-                } else {
-                    result = "<unsupported expr>";
-                }
-                // Output color: yellow for number, red for console.error, magenta for console.warn
+                // std::cerr << "[DEBUG] Executing PrintStmt with " << ps->args.size() << " args\n";
                 std::string color = "";
-                if (isNumber(result)) {
-                    color = yellow;
-                }
                 if (ps->origin == TokenKind::Tok_ConsoleError) {
                     color = "\033[31m"; // red
-                }
-                if (ps->origin == TokenKind::Tok_ConsoleWarn) {
+                } else if (ps->origin == TokenKind::Tok_ConsoleWarn) {
                     color = "\033[38;2;255;165;0m"; // orange-yellow
-                }
-                if (ps->origin == TokenKind::Tok_ConsoleInfo) {
+                } else if (ps->origin == TokenKind::Tok_ConsoleInfo) {
                     color = "\033[34m"; // blue
-                }
-                if (ps->origin == TokenKind::Tok_ConsoleSuccess) {
+                } else if (ps->origin == TokenKind::Tok_ConsoleSuccess) {
                     color = "\033[32m"; // green
+                }
+                std::string result;
+                for (size_t i = 0; i < ps->args.size(); ++i) {
+                    std::string argStr;
+                    if (auto lit = dynamic_cast<LiteralExpr*>(ps->args[i].get())) {
+                        if (isNumber(lit->value)) {
+                            argStr = yellow + lit->value + reset;
+                        } else {
+                            argStr = color + lit->value;
+                        }
+                    } else if (auto call = dynamic_cast<CallExpr*>(ps->args[i].get())) {
+                        argStr = call->callee + "()";
+                    } else {
+                        argStr = "<unsupported expr>";
+                    }
+                    if (i > 0) result += " ";
+                    result += argStr;
                 }
                 if (!color.empty()) {
                     result = color + result + reset;
@@ -108,17 +114,35 @@ int run_interpreter(const std::string &source) {
         }
         builder.CreateRet(llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx), 0));
     } else if (auto ps = dynamic_cast<PrintStmt*>(R.stmt.get())) {
+        std::string color = "";
+        if (ps->origin == TokenKind::Tok_ConsoleError) {
+            color = "\033[31m";
+        } else if (ps->origin == TokenKind::Tok_ConsoleWarn) {
+            color = "\033[38;2;255;165;0m";
+        } else if (ps->origin == TokenKind::Tok_ConsoleInfo) {
+            color = "\033[34m";
+        } else if (ps->origin == TokenKind::Tok_ConsoleSuccess) {
+            color = "\033[32m";
+        }
         std::string result;
-        if (auto lit = dynamic_cast<LiteralExpr*>(ps->expr.get())) {
-            result = lit->value;
-        } else if (auto call = dynamic_cast<CallExpr*>(ps->expr.get())) {
-            if (call->callee == "test") {
-                result = "123";
+        for (size_t i = 0; i < ps->args.size(); ++i) {
+            std::string argStr;
+            if (auto lit = dynamic_cast<LiteralExpr*>(ps->args[i].get())) {
+                if (isNumber(lit->value) && ps->origin == TokenKind::Tok_Print) {
+                    argStr = yellow + lit->value + reset;
+                } else {
+                    argStr = lit->value;
+                }
+            } else if (auto call = dynamic_cast<CallExpr*>(ps->args[i].get())) {
+                argStr = call->callee + "()";
             } else {
-                result = call->callee + "()";
+                argStr = "<unsupported expr>";
             }
-        } else {
-            result = "<unsupported expr>";
+            if (i > 0) result += " ";
+            result += argStr;
+        }
+        if (!color.empty()) {
+            result = color + result + reset;
         }
         auto out_str = builder.CreateGlobalStringPtr(result.c_str());
         builder.CreateCall(puts_func, {out_str});

@@ -420,7 +420,7 @@ bool Parser::parseImportAliasName()
 
 std::optional<ParseResult> Parser::parsePrintStatement()
 {
-  // std::cout << "[parsePrintStatement] Start: Cur.kind=" << (int)Cur.kind << " text=" << Cur.text << std::endl;
+  // std::cerr << "[DEBUG] Enter parsePrintStatement: Cur.kind=" << (int)Cur.kind << " text=" << Cur.text << std::endl;
   if (Cur.kind != TokenKind::Tok_Print && Cur.kind != TokenKind::Tok_ConsoleLog && Cur.kind != TokenKind::Tok_ConsoleError && Cur.kind != TokenKind::Tok_ConsoleWarn && Cur.kind != TokenKind::Tok_ConsoleInfo && Cur.kind != TokenKind::Tok_ConsoleSuccess)
     return std::nullopt;
   // std::cout << "[parsePrintStatement] Matched print/console.log, advancing" << std::endl;
@@ -432,77 +432,47 @@ std::optional<ParseResult> Parser::parsePrintStatement()
   // std::cout << "[parsePrintStatement] Matched '(', advancing" << std::endl;
   advance();
   // std::cout << "[parsePrintStatement] After advance: Cur.kind=" << (int)Cur.kind << " text=" << Cur.text << std::endl;
-  // Accept any expression inside print(...)
-  // For simplicity, consume tokens until matching ')'
-  int parenDepth = 1;
-  std::string exprText;
-  while (Cur.kind != TokenKind::Tok_EOF && parenDepth > 0)
-  {
-    // std::cout << "[parsePrintStatement] Loop: Cur.kind=" << (int)Cur.kind << " text=" << Cur.text << std::endl;
-    if (Cur.kind == TokenKind::Tok_LParen)
-    {
-      parenDepth++;
-      exprText += "(";
+  // Parse comma-separated arguments inside print(...)
+  std::vector<std::unique_ptr<Expr>> args;
+  bool expectArg = true;
+  while (Cur.kind != TokenKind::Tok_EOF) {
+    // std::cerr << "[DEBUG] print arg token: kind=" << (int)Cur.kind << " text=" << Cur.text << std::endl;
+    if (Cur.kind == TokenKind::Tok_RParen) {
       advance();
-      // std::cout << "[parsePrintStatement] After advance: Cur.kind=" << (int)Cur.kind << " text=" << Cur.text << std::endl;
-      continue;
+      break;
     }
-    if (Cur.kind == TokenKind::Tok_RParen)
-    {
-      parenDepth--;
-      if (parenDepth == 0)
-      {
+    if (!expectArg) {
+      if (Cur.kind == TokenKind::Tok_Comma) {
         advance();
-        // std::cout << "[parsePrintStatement] After advance: Cur.kind=" << (int)Cur.kind << " text=" << Cur.text << std::endl;
-        break;
+        expectArg = true;
+        continue;
+      } else {
+        // std::cerr << "[DEBUG] parsePrintStatement error: expected ',' between print arguments\n";
+        return error("expected ',' between print arguments");
       }
-      exprText += ")";
+    }
+    // Parse a single argument (literal or identifier)
+    if (Cur.kind == TokenKind::Tok_StringLiteral) {
+      std::string lit = Cur.text;
+      if (lit.size() >= 2 && ((lit.front() == '"' && lit.back() == '"') || (lit.front() == '\'' && lit.back() == '\''))) {
+        lit = lit.substr(1, lit.size() - 2);
+      }
+      args.push_back(std::make_unique<LiteralExpr>(lit));
       advance();
-      // std::cout << "[parsePrintStatement] After advance: Cur.kind=" << (int)Cur.kind << " text=" << Cur.text << std::endl;
-      continue;
+    } else if (Cur.kind == TokenKind::Tok_Number || Cur.kind == TokenKind::Tok_Integer) {
+      args.push_back(std::make_unique<LiteralExpr>(Cur.text));
+      advance();
+    } else if (Cur.kind == TokenKind::Tok_Identifier) {
+      args.push_back(std::make_unique<LiteralExpr>(Cur.text));
+      advance();
+    } else {
+      // std::cerr << "[DEBUG] parsePrintStatement error: unsupported print argument, kind=" << (int)Cur.kind << " text=" << Cur.text << std::endl;
+      return error("unsupported print argument");
     }
-    exprText += Cur.text;
-    advance();
-    // std::cout << "[parsePrintStatement] After advance: Cur.kind=" << (int)Cur.kind << " text=" << Cur.text << std::endl;
+    expectArg = false;
   }
-  if (parenDepth != 0)
-    return error("expected ')' after print argument");
-  // Construct PrintStmt AST node (for now, just store exprText)
-  if (printKind == TokenKind::Tok_ConsoleError)
-  {
-    // std::cout << "[parsePrintStatement] Creating PrintStmt for console.error: " << exprText << std::endl;
-  }
-
-  // Parse as function call or literal
-  std::unique_ptr<Expr> exprNode;
-  if (exprText.find("(") != std::string::npos && exprText.back() == ')')
-  {
-    // Function call: e.g. test()
-    size_t lparen = exprText.find('(');
-    std::string callee = exprText.substr(0, lparen);
-    // For now, ignore arguments (assume no args)
-    exprNode = std::make_unique<CallExpr>(callee, std::vector<std::unique_ptr<Expr>>{});
-  }
-  else
-  {
-    // Literal or string literal
-    std::string lit = exprText;
-    if (lit.size() >= 2 && ((lit.front() == '"' && lit.back() == '"') || (lit.front() == '\'' && lit.back() == '\'')))
-    {
-      lit = lit.substr(1, lit.size() - 2);
-    }
-    exprNode = std::make_unique<LiteralExpr>(lit);
-  }
-  auto stmt = std::make_unique<PrintStmt>(std::move(exprNode), printKind);
-  // Debug: print AST node for PrintStmt
-  if (auto lit = dynamic_cast<LiteralExpr *>(stmt->expr.get()))
-  {
-    // std::cout << "[Parser] PrintStmt: LiteralExpr value = " << lit->value << std::endl;
-  }
-  else if (auto call = dynamic_cast<CallExpr *>(stmt->expr.get()))
-  {
-    // std::cout << "[Parser] PrintStmt: CallExpr callee = " << call->callee << std::endl;
-  }
+  // std::cerr << "[DEBUG] parsePrintStatement success: " << args.size() << " args\n";
+  auto stmt = std::make_unique<PrintStmt>(std::move(args), printKind);
   return ParseResult{true, std::string(), std::move(stmt)};
 }
 
@@ -677,7 +647,7 @@ std::optional<ParseResult> Parser::parseStatementList()
 
 std::optional<ParseResult> Parser::parseStatement()
 {
-  std::cout << "[parseStatement] Cur.kind=" << (int)Cur.kind << " text=" << Cur.text << std::endl;
+  // std::cout << "[parseStatement] Cur.kind=" << (int)Cur.kind << " text=" << Cur.text << std::endl;
   // std::cerr << "DEBUG: enter parseStatement Cur.kind=" << (int)Cur.kind << " text='" << Cur.text << "' pos=" << Cur.pos << "\n";
   // Try block
   if (auto b = parseBlock())
@@ -1592,6 +1562,10 @@ std::optional<ParseResult> Parser::parseSourceElements()
         break;
       stmt = std::move(s->stmt);
       advanced = true;
+      // If the parsed statement is a PrintStmt, call parseEos()
+      if (stmt && dynamic_cast<PrintStmt*>(stmt.get())) {
+        parseEos();
+      }
     }
     else if (Cur.kind == TokenKind::Tok_ConsoleLog)
     {

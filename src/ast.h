@@ -36,12 +36,12 @@ struct CallExpr : Expr {
     : callee(c), args(std::move(a)) {}
 };
 
-// Print statement now stores an Expr
+// Print statement now stores a list of Expr (for multiple arguments)
 struct PrintStmt : Stmt {
-  std::unique_ptr<Expr> expr;
-    TokenKind origin;
-    PrintStmt(std::unique_ptr<Expr> e, TokenKind k)
-      : expr(std::move(e)), origin(k) {}
+  std::vector<std::unique_ptr<Expr>> args;
+  TokenKind origin;
+  PrintStmt(std::vector<std::unique_ptr<Expr>> a, TokenKind k)
+    : args(std::move(a)), origin(k) {}
 };
 
 // Minimal Type AST for lightweight printing and future wiring
