@@ -1,4 +1,5 @@
 
+
 #pragma once
 #include "token.h"
 #include <memory>
@@ -6,14 +7,20 @@
 #include <vector>
 #include <utility>
 
-
 // AST base classes
 struct Expr {
   virtual ~Expr() = default;
 };
-
 struct Stmt {
   virtual ~Stmt() = default;
+};
+
+// Variable/const declaration statement
+struct VarDeclStmt : Stmt {
+  std::string name;
+  std::unique_ptr<Expr> value;
+  VarDeclStmt(const std::string& n, std::unique_ptr<Expr> v)
+    : name(n), value(std::move(v)) {}
 };
 
 // Program node: holds a list of statements
@@ -24,9 +31,15 @@ struct Program : Stmt {
 };
 
 // Expression types
+
 struct LiteralExpr : Expr {
   std::string value;
   explicit LiteralExpr(const std::string& v) : value(v) {}
+};
+
+struct IdentifierExpr : Expr {
+  std::string name;
+  explicit IdentifierExpr(const std::string& n) : name(n) {}
 };
 
 struct CallExpr : Expr {

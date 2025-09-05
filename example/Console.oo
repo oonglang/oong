@@ -4,3 +4,26 @@ console.log("Log message!", 123, "abc");
 console.info("Info message!", 123, "abc");
 console.success("Success message!", 123, "abc");
 print("Print message!", 123, "abc");
+
+const obj = {
+  acc: 1,
+  bcc: {
+    ccc: 2,
+    dcc: {
+      ecc: 3,
+    },
+  },
+};
+console.warn("Warning Original object!", obj);
+console.error("Error Original object!", obj);
+console.log("Log Original object!", obj);
+console.info("Info Original object!", obj);
+console.success("Success Original object!", obj);
+print("Print Original object!", obj);
+
+console.warn("Warning Original boolean!",true,false);
+console.error("Error Original boolean!",true,false);
+console.log("Log Original boolean!",true,false);
+console.info("Info Original boolean!",true,false);
+console.success("Success Original boolean!",true,false);
+print("Print Original boolean!",true,false);

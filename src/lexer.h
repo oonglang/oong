@@ -1,3 +1,4 @@
+
 #pragma once
 #include <string>
 #include "token.h"
@@ -10,6 +11,7 @@ public:
   bool IsStrictMode() const { return StrictMode; }
   // Return true if the source contains a line terminator between [from, to)
   bool ContainsLineTerminatorBetween(size_t from, size_t to) const;
+  const std::string& getSource() const { return Src; }
 
 private:
   const std::string Src;

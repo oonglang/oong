@@ -462,8 +462,11 @@ std::optional<ParseResult> Parser::parsePrintStatement()
     } else if (Cur.kind == TokenKind::Tok_Number || Cur.kind == TokenKind::Tok_Integer) {
       args.push_back(std::make_unique<LiteralExpr>(Cur.text));
       advance();
-    } else if (Cur.kind == TokenKind::Tok_Identifier) {
+    } else if (Cur.kind == TokenKind::Tok_BooleanLiteral) {
       args.push_back(std::make_unique<LiteralExpr>(Cur.text));
+      advance();
+    } else if (Cur.kind == TokenKind::Tok_Identifier) {
+      args.push_back(std::make_unique<IdentifierExpr>(Cur.text));
       advance();
     } else {
       // std::cerr << "[DEBUG] parsePrintStatement error: unsupported print argument, kind=" << (int)Cur.kind << " text=" << Cur.text << std::endl;
@@ -1549,9 +1552,60 @@ std::optional<ParseResult> Parser::parseSourceElements()
     // Top-level variable declaration (const, var)
     else if (Cur.kind == TokenKind::Tok_Const || Cur.kind == TokenKind::Tok_Var)
     {
-      bool ok = parseVariableDeclaration();
-      if (!ok)
+      // Parse: const <name> = <expr>;
+      advance();
+      if (Cur.kind != TokenKind::Tok_Identifier) break;
+      std::string varName = Cur.text;
+      advance();
+      if (Cur.kind != TokenKind::Tok_Assign) break;
+      advance();
+      // Parse the expression (object literal, number, string, etc.)
+      std::unique_ptr<Expr> valueExpr;
+      if (Cur.kind == TokenKind::Tok_LBrace) {
+        // Parse object literal as a string, capturing all tokens and whitespace until matching closing brace
+        std::string objStr;
+        int depth = 0;
+        bool first = true;
+        int startPos = Cur.pos;
+        int endPos = Cur.pos;
+        // Save the starting position
+        while (Cur.kind != TokenKind::Tok_EOF) {
+          if (Cur.kind == TokenKind::Tok_LBrace) {
+            depth++;
+          } else if (Cur.kind == TokenKind::Tok_RBrace) {
+            depth--;
+          }
+          endPos = Cur.pos + Cur.text.size();
+          // Advance after checking, so we include the last RBrace
+          if (depth == 0) {
+            // Include the last RBrace
+            objStr = L.getSource().substr(startPos, endPos - startPos);
+            advance();
+            break;
+          }
+          advance();
+        }
+        valueExpr = std::make_unique<LiteralExpr>(objStr);
+      } else if (Cur.kind == TokenKind::Tok_Number || Cur.kind == TokenKind::Tok_Integer) {
+        valueExpr = std::make_unique<LiteralExpr>(Cur.text);
+        advance();
+      } else if (Cur.kind == TokenKind::Tok_BooleanLiteral) {
+        valueExpr = std::make_unique<LiteralExpr>(Cur.text);
+        advance();
+      } else if (Cur.kind == TokenKind::Tok_StringLiteral) {
+        std::string lit = Cur.text;
+        if (lit.size() >= 2 && ((lit.front() == '"' && lit.back() == '"') || (lit.front() == '\'' && lit.back() == '\''))) {
+          lit = lit.substr(1, lit.size() - 2);
+        }
+        valueExpr = std::make_unique<LiteralExpr>(lit);
+        advance();
+      } else {
+        // fallback: skip
         break;
+      }
+      stmts.push_back(std::make_unique<VarDeclStmt>(varName, std::move(valueExpr)));
+      // Optional semicolon
+      if (Cur.kind == TokenKind::Tok_Semi) advance();
       advanced = true;
     }
     // Top-level import/export/print
